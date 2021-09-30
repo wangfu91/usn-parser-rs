@@ -7,8 +7,7 @@ fn main() {
             FILE_ACCESS_FLAGS,
             FILE_SHARE_MODE,
             FILE_CREATION_DISPOSITION,
-            FILE_FLAGS_AND_ATTRIBUTES
-
+            FILE_FLAGS_AND_ATTRIBUTES,            
         },
 
         Windows::Win32::System::SystemServices:: {
