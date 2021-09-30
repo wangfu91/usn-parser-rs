@@ -22,5 +22,10 @@ fn main() {
         Windows::Win32::Foundation::{
             HANDLE,
         },
+
+        Windows::Win32::System::Diagnostics::Debug::{
+            GetLastError,
+            WIN32_ERROR,
+        },
     };
 }
