@@ -8,3 +8,4 @@ edition = "2018"
 [dependencies]
 windows = "0.19"
 bindings = { path = "bindings" }
+byteorder = "1.4.3"
