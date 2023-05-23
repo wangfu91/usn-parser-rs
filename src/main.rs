@@ -30,8 +30,6 @@ fn main() -> anyhow::Result<()> {
     let volumne_root = format!(r"\\.\{}", volume);
     println!("volume_root={}", volumne_root);
 
-    // https://microsoft.github.io/windows-docs-rs/doc/bindings/Windows/Win32/System/Diagnostics/Debug/struct.WIN32_ERROR.html
-
     let volume_handle = unsafe {
         CreateFileW(
             &HSTRING::from(volumne_root),
@@ -48,8 +46,6 @@ fn main() -> anyhow::Result<()> {
 
     let journal_data = USN_JOURNAL_DATA_V0::default();
     let query_journal_bytes_return = 0u32;
-    let mut next_usn = 0i64;
-    let mut journal_id = 0u64;
 
     let succeess = unsafe {
         DeviceIoControl(
@@ -126,18 +122,16 @@ fn read_mft(
 
         let mut offset = 8; //sizeof(FileId)
         while offset < bytes_read {
-            let record;
-            let record_length;
-
             let record_raw = unsafe {
-                mem::transmute::<*const u8, *const USN_RECORD_V2>(
+                mem::transmute::<*const u8, *const USN_RECORD_UNION>(
                     buffer[offset as usize..].as_ptr(),
                 )
             };
 
-            record = unsafe { *record_raw };
+            let record = unsafe { *record_raw };
+            let header = unsafe { record.Header };
             //println!("{:#?}", record);
-            record_length = record.RecordLength;
+            let record_length = header.RecordLength;
 
             offset += record_length;
         }
@@ -198,9 +192,6 @@ fn monitor_usn_journal(
             let mut offset = 8; // sizeof(USN)
 
             while offset < read_data_bytes_return {
-                let record;
-                let record_length;
-
                 let record_raw = transmute::<*const u8, *const USN_RECORD_UNION>(
                     buffer[offset as usize..].as_ptr(),
                 );
@@ -211,8 +202,8 @@ fn monitor_usn_journal(
                     break;
                 }
 
-                record_length = header.RecordLength;
-                record = &(*record_raw).V2;
+                let record_length = header.RecordLength;
+                let record = &(*record_raw).V2;
 
                 //println!("{:#?}", record);
 
@@ -239,7 +230,7 @@ fn get_usn_record_path(
     let file_name = get_usn_file_name(record);
     let parent_path = get_file_path(volume_handle, record.ParentFileReferenceNumber)?;
 
-    Ok(parent_path.join(&file_name))
+    Ok(parent_path.join(file_name))
 }
 
 fn get_usn_file_name(record: &USN_RECORD_V2) -> String {
@@ -258,7 +249,7 @@ fn get_usn_file_name(record: &USN_RECORD_V2) -> String {
         return file_name;
     }
 
-    return String::new();
+    String::new()
 }
 
 fn get_file_path(volume_handle: &HANDLE, file_id: u64) -> anyhow::Result<PathBuf> {
@@ -310,7 +301,7 @@ fn get_file_path(volume_handle: &HANDLE, file_id: u64) -> anyhow::Result<PathBuf
         let name_u16 =
             unsafe { std::slice::from_raw_parts(info.FileName.as_ptr() as *const u16, name_len) };
         let path = PathBuf::from(OsString::from_wide(name_u16));
-        return Ok(path);
+        Ok(path)
     } else {
         Err(Error::from_win32().into())
     }
