@@ -7,7 +7,6 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
-byteorder = "1.4.3"
 
 [dependencies.windows]
 windows = "0.48.0"
