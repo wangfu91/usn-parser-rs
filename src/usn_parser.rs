@@ -8,8 +8,6 @@ use std::{
     path::PathBuf,
     slice,
 };
-
-use safe_handle::SafeHandle;
 use windows::{
     core::{Error, HSTRING},
     Win32::{
@@ -45,6 +43,8 @@ pub fn get_volume_handle(volume_root: &str) -> anyhow::Result<SafeHandle> {
 
     Ok(SafeHandle(volume_handle))
 }
+
+use safe_handle::SafeHandle;
 
 pub fn query_usn_state(volume_handle: &SafeHandle) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
     let journal_data = USN_JOURNAL_DATA_V0::default();
@@ -183,7 +183,7 @@ pub fn monitor_usn_journal(
                 read_data.StartUsn = next_usn;
             }
 
-            let mut offset = 8; // sizeof(USN)
+            let mut offset = size_of::<i64>() as u32;
 
             while offset < read_data_bytes_return {
                 let record_raw = transmute::<*const u8, *const USN_RECORD_UNION>(
