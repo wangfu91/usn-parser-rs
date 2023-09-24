@@ -7,19 +7,19 @@
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug executable 'usn-parser-rs'",
+            "name": "Debug executable 'usn-parser'",
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=usn-parser-rs",
-                    "--package=usn-parser-rs"
+                    "--bin=usn-parser",
+                    "--package=usn-parser"
                 ],
                 "filter": {
-                    "name": "usn-parser-rs",
+                    "name": "usn-parser",
                     "kind": "bin"
                 }
             },
-            "args": [],
+            "args": ["E:", "monitor"],
             "cwd": "${workspaceFolder}"
         },
         {
@@ -30,11 +30,11 @@
                 "args": [
                     "test",
                     "--no-run",
-                    "--bin=usn-parser-rs",
-                    "--package=usn-parser-rs"
+                    "--bin=usn-parser",
+                    "--package=usn-parser"
                 ],
                 "filter": {
-                    "name": "usn-parser-rs",
+                    "name": "usn-parser",
                     "kind": "bin"
                 }
             },

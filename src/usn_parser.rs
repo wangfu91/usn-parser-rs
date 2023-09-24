@@ -9,7 +9,7 @@ use std::{
     slice,
 };
 use windows::{
-    core::{Error, HSTRING},
+    core::HSTRING,
     Win32::{
         Foundation::{self, ERROR_HANDLE_EOF, HANDLE},
         Storage::FileSystem::{
@@ -50,7 +50,7 @@ pub fn query_usn_state(volume_handle: &SafeHandle) -> anyhow::Result<USN_JOURNAL
     let journal_data = USN_JOURNAL_DATA_V0::default();
     let query_journal_bytes_return = 0u32;
 
-    let result = unsafe {
+    unsafe {
         DeviceIoControl(
             volume_handle.0,
             FSCTL_QUERY_USN_JOURNAL,
@@ -61,9 +61,7 @@ pub fn query_usn_state(volume_handle: &SafeHandle) -> anyhow::Result<USN_JOURNAL
             Some(&query_journal_bytes_return as *const _ as *mut _),
             None,
         )
-    };
-
-    result.ok()?;
+    }?;
 
     Ok(journal_data)
 }
@@ -98,15 +96,16 @@ pub fn read_mft(
             )
         };
 
-        if !enum_result.as_bool() {
-            let error = Error::from_win32();
+        match enum_result {
+            Ok(_) => {}
+            Err(err) => {
+                if err.code() == ERROR_HANDLE_EOF.into() {
+                    println!("Done reading MFT data");
+                    return Ok(());
+                }
 
-            if error.code() == ERROR_HANDLE_EOF.into() {
-                println!("Done reading MFT data");
-                return Ok(());
+                return Err(err.into());
             }
-
-            return Err(error.into());
         }
 
         let next_start_file_id = unsafe { *(buffer.as_ptr() as *const u64) };
@@ -156,40 +155,23 @@ pub fn monitor_usn_journal(
 
     loop {
         unsafe {
-            let success = DeviceIoControl(
+            DeviceIoControl(
                 volume_handle.0,
                 FSCTL_READ_USN_JOURNAL,
                 Some(&read_data as *const _ as *mut _),
                 size_of::<READ_USN_JOURNAL_DATA_V0>() as u32,
-                Some(&mut buffer as *const _ as *mut _),
+                Some(&mut buffer as *mut _ as *mut c_void),
                 4096,
                 Some(&mut read_data_bytes_return),
                 None,
-            );
-
-            if !success.as_bool() {
-                let error = Error::from_win32();
-                println!("Read usn journal failed with error: {}", error);
-                return Err(error.into());
-            }
-
-            // https://learn.microsoft.com/en-us/windows/win32/fileio/walking-a-buffer-of-change-journal-records
-            // The USN returned as the first item in the output buffer is the USN of the next record number to be retrieved.
-            // Use this value to continue reading records from the end boundary forward.
-            let next_usn = *(buffer.as_ptr() as *const i64);
-            if next_usn == 0 || next_usn < read_data.StartUsn {
-                return Ok(());
-            } else {
-                read_data.StartUsn = next_usn;
-            }
+            )?;
 
             let mut offset = size_of::<i64>() as u32;
 
             while offset < read_data_bytes_return {
-                let record_raw = transmute::<*const u8, *const USN_RECORD_UNION>(
-                    buffer[offset as usize..].as_ptr(),
-                );
-                let header = &(*record_raw).Header;
+                let record = &*(buffer.as_ptr().offset(offset as isize) as *const USN_RECORD_UNION);
+
+                let header = record.Header;
 
                 if header.RecordLength == 0 || header.MajorVersion != 2 {
                     println!("Unsupported major version: {}", header.MajorVersion);
@@ -197,11 +179,10 @@ pub fn monitor_usn_journal(
                 }
 
                 let record_length = header.RecordLength;
-                let record = &(*record_raw).V2;
 
                 //println!("{:#?}", record);
 
-                let path_result = get_usn_record_path(volume_handle, record);
+                let path_result = get_usn_record_path(volume_handle, &record.V2);
                 match path_result {
                     Ok(record_path) => {
                         println!("record path = {:?}", record_path);
@@ -213,6 +194,12 @@ pub fn monitor_usn_journal(
 
                 offset += record_length;
             }
+
+            // https://learn.microsoft.com/en-us/windows/win32/fileio/walking-a-buffer-of-change-journal-records
+            // The USN returned as the first item in the output buffer is the USN of the next record number to be retrieved.
+            // Use this value to continue reading records from the end boundary forward.
+            let next_usn = *(buffer.as_ptr() as *const i64);
+            read_data.StartUsn = next_usn;
         };
     }
 }
@@ -280,14 +267,16 @@ fn get_file_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<Pat
                 &mut *info_buffer as *mut _ as *mut c_void,
                 info_buffer.len() as u32,
             )
-            .ok()
         } {
             if err.code() == Foundation::ERROR_MORE_DATA.into() {
                 // Long paths, needs to extend buffer size to hold it.
-                let new_len = 2 * info_buffer.capacity();
-                info_buffer.reserve(new_len - info_buffer.capacity());
-                unsafe { info_buffer.set_len(info_buffer.capacity()) };
+                let name_info =
+                    unsafe { &*(info_buffer.as_ptr() as *const FileSystem::FILE_NAME_INFO) };
 
+                let needed_len = name_info.FileNameLength;
+                // expand info_buffer capacity to needed_len to hold the long path
+                info_buffer.resize(needed_len as usize, 0);
+                // try again
                 continue;
             }
 
@@ -297,19 +286,12 @@ fn get_file_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<Pat
         break;
     }
 
-    let close_result = unsafe { Foundation::CloseHandle(file_handle) };
-    if !close_result.as_bool() {
-        println!(
-            "Close file handle failed with error: {}",
-            Error::from_win32()
-        )
-    }
+    unsafe { Foundation::CloseHandle(file_handle) }?;
 
     let (_, body, _) = unsafe { info_buffer.align_to::<FileSystem::FILE_NAME_INFO>() };
     let info = &body[0];
     let name_len = info.FileNameLength as usize / size_of::<u16>();
-    let name_u16 =
-        unsafe { std::slice::from_raw_parts(info.FileName.as_ptr() as *const u16, name_len) };
+    let name_u16 = unsafe { slice::from_raw_parts(info.FileName.as_ptr(), name_len) };
     let path = PathBuf::from(OsString::from_wide(name_u16));
     Ok(path)
 }
@@ -334,4 +316,7 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn iter_test() {}
 }

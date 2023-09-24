@@ -7,10 +7,10 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0"
-clap = { version = "4.3", features = ["derive"] }
+clap = { version = "4.4", features = ["derive"] }
 
 [dependencies.windows]
-version = "0.48.0"
+version = "0.51"
 features = [
     "Win32_Foundation",
     "Win32_System_IO",

@@ -20,7 +20,7 @@ struct Cli {
 enum Commands {
     Monitor {},
 
-    MFT {},
+    Mft {},
 }
 
 fn main() -> anyhow::Result<()> {
@@ -44,7 +44,7 @@ fn main() -> anyhow::Result<()> {
             usn_parser::monitor_usn_journal(&volume_handle, &journal_data)?;
         }
 
-        Commands::MFT {} => {
+        Commands::Mft {} => {
             usn_parser::read_mft(&volume_handle, &journal_data)?;
         }
     }
