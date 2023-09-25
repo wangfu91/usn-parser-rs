@@ -3,11 +3,13 @@ use crate::safe_handle;
 use std::{
     default::Default,
     ffi::{c_void, OsString},
-    mem::{self, size_of, transmute},
+    mem::{self, size_of},
     os::windows::prelude::OsStringExt,
-    path::PathBuf,
+    path::{Path, PathBuf},
     slice,
 };
+
+use safe_handle::SafeHandle;
 use windows::{
     core::HSTRING,
     Win32::{
@@ -26,6 +28,8 @@ use windows::{
     },
 };
 
+type Usn = i64;
+
 pub fn get_volume_handle(volume_root: &str) -> anyhow::Result<SafeHandle> {
     let volume_handle = unsafe {
         CreateFileW(
@@ -43,8 +47,6 @@ pub fn get_volume_handle(volume_root: &str) -> anyhow::Result<SafeHandle> {
 
     Ok(SafeHandle(volume_handle))
 }
-
-use safe_handle::SafeHandle;
 
 pub fn query_usn_state(volume_handle: &SafeHandle) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
     let journal_data = USN_JOURNAL_DATA_V0::default();
@@ -160,16 +162,28 @@ pub fn monitor_usn_journal(
                 FSCTL_READ_USN_JOURNAL,
                 Some(&read_data as *const _ as *mut _),
                 size_of::<READ_USN_JOURNAL_DATA_V0>() as u32,
-                Some(&mut buffer as *mut _ as *mut c_void),
+                Some(buffer.as_mut_ptr() as *mut c_void),
                 4096,
                 Some(&mut read_data_bytes_return),
                 None,
             )?;
 
-            let mut offset = size_of::<i64>() as u32;
+            // https://learn.microsoft.com/en-us/windows/win32/fileio/walking-a-buffer-of-change-journal-records
+            // The USN returned as the first item in the output buffer is the USN of the next record number to be retrieved.
+            // Use this value to continue reading records from the end boundary forward.
+            let next_usn = std::ptr::read(buffer.as_ptr() as *const Usn);
+            if next_usn == 0 || next_usn < read_data.StartUsn {
+                return Ok(());
+            } else {
+                read_data.StartUsn = next_usn;
+            }
+
+            let mut offset = size_of::<Usn>() as u32;
 
             while offset < read_data_bytes_return {
-                let record = &*(buffer.as_ptr().offset(offset as isize) as *const USN_RECORD_UNION);
+                let record = std::ptr::read(
+                    buffer.as_ptr().offset(offset as isize) as *const USN_RECORD_UNION
+                );
 
                 let header = record.Header;
 
@@ -180,12 +194,12 @@ pub fn monitor_usn_journal(
 
                 let record_length = header.RecordLength;
 
-                //println!("{:#?}", record);
+                // println!("{:#?}", record);
 
                 let path_result = get_usn_record_path(volume_handle, &record.V2);
                 match path_result {
                     Ok(record_path) => {
-                        println!("record path = {:?}", record_path);
+                        println!("record path = {}", record_path.display());
                     }
                     Err(err) => {
                         println!("Error getting path: {}", err);
@@ -194,12 +208,6 @@ pub fn monitor_usn_journal(
 
                 offset += record_length;
             }
-
-            // https://learn.microsoft.com/en-us/windows/win32/fileio/walking-a-buffer-of-change-journal-records
-            // The USN returned as the first item in the output buffer is the USN of the next record number to be retrieved.
-            // Use this value to continue reading records from the end boundary forward.
-            let next_usn = *(buffer.as_ptr() as *const i64);
-            read_data.StartUsn = next_usn;
         };
     }
 }
@@ -214,7 +222,7 @@ fn get_usn_record_path(
     Ok(parent_path.join(file_name))
 }
 
-fn get_usn_file_name(record: &USN_RECORD_V2) -> String {
+fn get_usn_file_name(record: &USN_RECORD_V2) -> PathBuf {
     // FileNameLength is the length of the name of the file or directory associated with this record, in bytes.
     //  but the USN_RECORD_V2.FileName is u16, so we have to do the division to get the real UTF-16 length
     // The file name length does not count the terminating null character
@@ -222,15 +230,12 @@ fn get_usn_file_name(record: &USN_RECORD_V2) -> String {
 
     if file_name_len > 0 {
         let file_name_u16 =
-            unsafe { slice::from_raw_parts(record.FileName.as_ptr() as *const u16, file_name_len) };
-        let file_name = OsString::from_wide(file_name_u16)
-            .to_string_lossy()
-            .into_owned();
-
-        return file_name;
+            unsafe { slice::from_raw_parts(record.FileName.as_ptr(), file_name_len) };
+        let file_name = OsString::from_wide(file_name_u16);
+        return PathBuf::from(file_name);
     }
 
-    String::new()
+    PathBuf::new()
 }
 
 fn get_file_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<PathBuf> {

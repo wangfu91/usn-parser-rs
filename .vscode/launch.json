@@ -19,13 +19,13 @@
                     "kind": "bin"
                 }
             },
-            "args": ["E:", "monitor"],
+            "args": ["C:", "monitor"],
             "cwd": "${workspaceFolder}"
         },
         {
             "type": "lldb",
             "request": "launch",
-            "name": "Debug unit tests in executable 'usn-parser-rs'",
+            "name": "Debug unit tests in executable 'usn-parser'",
             "cargo": {
                 "args": [
                     "test",
