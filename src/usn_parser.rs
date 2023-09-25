@@ -5,10 +5,11 @@ use std::{
     ffi::{c_void, OsString},
     mem::{self, size_of},
     os::windows::prelude::OsStringExt,
-    path::{Path, PathBuf},
+    path::PathBuf,
     slice,
 };
 
+use anyhow::Context;
 use safe_handle::SafeHandle;
 use windows::{
     core::HSTRING,
@@ -21,7 +22,7 @@ use windows::{
         System::{
             Ioctl::{
                 self, FSCTL_QUERY_USN_JOURNAL, FSCTL_READ_USN_JOURNAL, READ_USN_JOURNAL_DATA_V0,
-                USN_JOURNAL_DATA_V0, USN_RECORD_UNION, USN_RECORD_V2,
+                USN_JOURNAL_DATA_V0, USN_RECORD_V2,
             },
             IO::DeviceIoControl,
         },
@@ -81,10 +82,6 @@ pub fn read_mft(
     let mut bytes_read: u32 = 0;
 
     loop {
-        println!(
-            "enum usn, start file id = {}",
-            mft_enum_data.StartFileReferenceNumber
-        );
         let enum_result = unsafe {
             DeviceIoControl(
                 volume_handle.0,
@@ -110,31 +107,50 @@ pub fn read_mft(
             }
         }
 
-        let next_start_file_id = unsafe { *(buffer.as_ptr() as *const u64) };
-        mft_enum_data.StartFileReferenceNumber = next_start_file_id;
+        let next_start_file_id = unsafe { std::ptr::read(buffer.as_ptr() as *const Usn) };
+        mft_enum_data.StartFileReferenceNumber = next_start_file_id as u64;
 
-        println!("enum usn, bytes read = {}", bytes_read);
-
-        let mut offset = 8; //sizeof(FileId)
+        let mut offset = std::mem::size_of::<Usn>() as u32;
         while offset < bytes_read {
-            let record_raw = unsafe {
-                mem::transmute::<*const u8, *const USN_RECORD_UNION>(
-                    buffer[offset as usize..].as_ptr(),
-                )
+            let record = unsafe {
+                std::ptr::read(buffer.as_ptr().offset(offset as isize) as *const USN_RECORD_V2)
             };
 
-            let record = unsafe { *record_raw };
-            let header = unsafe { record.Header };
-            //println!("{:#?}", record);
-            let record_length = header.RecordLength;
+            if record.RecordLength == 0 || record.MajorVersion != 2 {
+                println!("Unsupported USN major version: {}", record.MajorVersion);
+                break;
+            }
 
-            offset += record_length;
+            let file_name_len = record.FileNameLength as usize / std::mem::size_of::<u16>();
+
+            // Do not perform any compile-time pointer arithmetic using FileName.
+            // Instead, make necessary calculations at run time by using the value of the FileNameOffset member.
+            // Doing so helps make your code compatible with any future versions of USN_RECORD_V2.
+            let file_name_u16 = unsafe {
+                slice::from_raw_parts(
+                    buffer
+                        .as_ptr()
+                        .offset((offset + record.FileNameOffset as u32) as isize)
+                        as *const u16,
+                    file_name_len,
+                )
+            };
+            //let file_name = OsString::from_wide(file_name_u16);
+            let file_name = String::from_utf16_lossy(file_name_u16);
+
+            if let Ok(parent_path) =
+                file_id_to_path(volume_handle, record.ParentFileReferenceNumber)
+            {
+                let record_path = parent_path.join(file_name);
+
+                println!("MFT record, path = {}", record_path.display());
+            }
+
+            offset += record.RecordLength;
         }
 
-        println!("enum usn, offset = {}", offset);
-
         if offset != bytes_read {
-            println!("offset vs bytesRead: {} vs {}", offset, bytes_read);
+            panic!("offset vs bytesRead: {} vs {}", offset, bytes_read);
         }
     }
 }
@@ -166,79 +182,62 @@ pub fn monitor_usn_journal(
                 4096,
                 Some(&mut read_data_bytes_return),
                 None,
-            )?;
-
-            // https://learn.microsoft.com/en-us/windows/win32/fileio/walking-a-buffer-of-change-journal-records
-            // The USN returned as the first item in the output buffer is the USN of the next record number to be retrieved.
-            // Use this value to continue reading records from the end boundary forward.
-            let next_usn = std::ptr::read(buffer.as_ptr() as *const Usn);
-            if next_usn == 0 || next_usn < read_data.StartUsn {
-                return Ok(());
-            } else {
-                read_data.StartUsn = next_usn;
-            }
-
-            let mut offset = size_of::<Usn>() as u32;
-
-            while offset < read_data_bytes_return {
-                let record = std::ptr::read(
-                    buffer.as_ptr().offset(offset as isize) as *const USN_RECORD_UNION
-                );
-
-                let header = record.Header;
-
-                if header.RecordLength == 0 || header.MajorVersion != 2 {
-                    println!("Unsupported major version: {}", header.MajorVersion);
-                    break;
-                }
-
-                let record_length = header.RecordLength;
-
-                // println!("{:#?}", record);
-
-                let path_result = get_usn_record_path(volume_handle, &record.V2);
-                match path_result {
-                    Ok(record_path) => {
-                        println!("record path = {}", record_path.display());
-                    }
-                    Err(err) => {
-                        println!("Error getting path: {}", err);
-                    }
-                }
-
-                offset += record_length;
-            }
+            )?
         };
+
+        // https://learn.microsoft.com/en-us/windows/win32/fileio/walking-a-buffer-of-change-journal-records
+        // The USN returned as the first item in the output buffer is the USN of the next record number to be retrieved.
+        // Use this value to continue reading records from the end boundary forward.
+        let next_usn = unsafe { std::ptr::read(buffer.as_ptr() as *const Usn) };
+        if next_usn == 0 || next_usn < read_data.StartUsn {
+            return Ok(());
+        } else {
+            read_data.StartUsn = next_usn;
+        }
+
+        let mut offset = size_of::<Usn>() as u32;
+
+        while offset < read_data_bytes_return {
+            let record = unsafe {
+                std::ptr::read(buffer.as_ptr().offset(offset as isize) as *const USN_RECORD_V2)
+            };
+
+            if record.RecordLength == 0 || record.MajorVersion != 2 {
+                println!("Unsupported USN major version: {}", record.MajorVersion);
+                break;
+            }
+
+            let file_name_len = record.FileNameLength as usize / std::mem::size_of::<u16>();
+
+            // Do not perform any compile-time pointer arithmetic using FileName.
+            // Instead, make necessary calculations at run time by using the value of the FileNameOffset member.
+            // Doing so helps make your code compatible with any future versions of USN_RECORD_V2.
+            let file_name_u16 = unsafe {
+                slice::from_raw_parts(
+                    buffer
+                        .as_ptr()
+                        .offset((offset + record.FileNameOffset as u32) as isize)
+                        as *const u16,
+                    file_name_len,
+                )
+            };
+            //let file_name = OsString::from_wide(file_name_u16);
+            let file_name = String::from_utf16_lossy(file_name_u16);
+
+            if let Ok(parent_path) =
+                file_id_to_path(volume_handle, record.ParentFileReferenceNumber)
+            {
+                let record_path = parent_path.join(file_name);
+
+                println!("record path = {}", record_path.display());
+            }
+
+            offset += record.RecordLength;
+        }
     }
 }
 
-fn get_usn_record_path(
-    volume_handle: &SafeHandle,
-    record: &Ioctl::USN_RECORD_V2,
-) -> anyhow::Result<PathBuf> {
-    let file_name = get_usn_file_name(record);
-    let parent_path = get_file_path(volume_handle, record.ParentFileReferenceNumber)?;
-
-    Ok(parent_path.join(file_name))
-}
-
-fn get_usn_file_name(record: &USN_RECORD_V2) -> PathBuf {
-    // FileNameLength is the length of the name of the file or directory associated with this record, in bytes.
-    //  but the USN_RECORD_V2.FileName is u16, so we have to do the division to get the real UTF-16 length
-    // The file name length does not count the terminating null character
-    let file_name_len = record.FileNameLength as usize / std::mem::size_of::<u16>();
-
-    if file_name_len > 0 {
-        let file_name_u16 =
-            unsafe { slice::from_raw_parts(record.FileName.as_ptr(), file_name_len) };
-        let file_name = OsString::from_wide(file_name_u16);
-        return PathBuf::from(file_name);
-    }
-
-    PathBuf::new()
-}
-
-fn get_file_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<PathBuf> {
+fn file_id_to_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<PathBuf> {
     let file_id_desc = FILE_ID_DESCRIPTOR {
         Type: FileSystem::FileIdType,
         dwSize: size_of::<FileSystem::FILE_ID_DESCRIPTOR>() as u32,
@@ -257,7 +256,8 @@ fn get_file_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<Pat
                 | FileSystem::FILE_SHARE_DELETE,
             None,
             FILE_FLAGS_AND_ATTRIBUTES::default(),
-        )?
+        )
+        .with_context(|| format!("OpenFileById failed, file_id={}", file_id))?
     };
 
     let init_len = size_of::<FileSystem::FILE_NAME_INFO>()
@@ -303,7 +303,7 @@ fn get_file_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<Pat
 
 #[cfg(test)]
 mod tests {
-    use crate::usn_parser::{get_file_path, get_volume_handle};
+    use crate::usn_parser::{file_id_to_path, get_volume_handle};
 
     #[test]
     fn get_long_path_test() -> anyhow::Result<()> {
@@ -315,7 +315,7 @@ mod tests {
 
         let file_id = 5066549581896872u64;
 
-        let path = get_file_path(&volume_handle, file_id)?;
+        let path = file_id_to_path(&volume_handle, file_id)?;
 
         println!("path = {:#?}", path);
 

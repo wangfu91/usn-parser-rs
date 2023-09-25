@@ -19,7 +19,7 @@
                     "kind": "bin"
                 }
             },
-            "args": ["C:", "monitor"],
+            "args": ["C:", "mft"],
             "cwd": "${workspaceFolder}"
         },
         {
