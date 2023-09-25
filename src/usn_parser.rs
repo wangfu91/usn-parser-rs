@@ -260,8 +260,7 @@ fn file_id_to_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<P
         .with_context(|| format!("OpenFileById failed, file_id={}", file_id))?
     };
 
-    let init_len = size_of::<FileSystem::FILE_NAME_INFO>()
-        + (Foundation::MAX_PATH as usize) * size_of::<u16>();
+    let init_len = size_of::<u32>() + (Foundation::MAX_PATH as usize) * size_of::<u16>();
     let mut info_buffer = vec![0u8; init_len];
 
     loop {
@@ -275,10 +274,11 @@ fn file_id_to_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<P
         } {
             if err.code() == Foundation::ERROR_MORE_DATA.into() {
                 // Long paths, needs to extend buffer size to hold it.
-                let name_info =
-                    unsafe { &*(info_buffer.as_ptr() as *const FileSystem::FILE_NAME_INFO) };
+                let name_info = unsafe {
+                    std::ptr::read(info_buffer.as_ptr() as *const FileSystem::FILE_NAME_INFO)
+                };
 
-                let needed_len = name_info.FileNameLength;
+                let needed_len = name_info.FileNameLength + size_of::<u32>() as u32;
                 // expand info_buffer capacity to needed_len to hold the long path
                 info_buffer.resize(needed_len as usize, 0);
                 // try again
