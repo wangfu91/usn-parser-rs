@@ -29,15 +29,15 @@ fn main() -> anyhow::Result<()> {
     let volume = cli.volume;
 
     let volume_root = format!(r"\\.\{}", volume);
-    println!("volume_root={}", volume_root);
+    // println!("volume_root={}", volume_root);
 
     let volume_handle = usn_parser::get_volume_handle(&volume_root)?;
 
-    println!("volume handle = {:?}", volume_handle);
+    // println!("volume handle = {:?}", volume_handle);
 
     let journal_data = usn_parser::query_usn_state(&volume_handle)?;
 
-    println!("Journal data: {:#?}", journal_data);
+    // println!("Journal data: {:#?}", journal_data);
 
     match cli.command {
         Commands::Monitor {} => {

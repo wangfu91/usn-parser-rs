@@ -125,11 +125,11 @@ pub fn read_mft(
             }
 
             if let Some(record_path) = cache.get(&record.FileReferenceNumber) {
-                println!(
-                    "MFT record cached, ({},{})",
-                    record.FileReferenceNumber,
-                    record_path.display()
-                );
+                // println!(
+                //     "MFT record cached, ({},{})",
+                //     record.FileReferenceNumber,
+                //     record_path.display()
+                // );
                 offset += record.RecordLength;
                 continue;
             }
@@ -156,20 +156,20 @@ pub fn read_mft(
             } else if let Ok(parent_path) =
                 file_id_to_path(volume_handle, record.ParentFileReferenceNumber)
             {
-                println!(
-                    "+ ({},{})",
-                    record.ParentFileReferenceNumber,
-                    parent_path.display()
-                );
+                // println!(
+                //     "+ ({},{})",
+                //     record.ParentFileReferenceNumber,
+                //     parent_path.display()
+                // );
                 cache.put(record.ParentFileReferenceNumber, parent_path.clone());
                 let record_path = parent_path.join(file_name);
 
                 if record.FileAttributes & FileSystem::FILE_ATTRIBUTE_DIRECTORY.0 != 0 {
-                    println!(
-                        "++ ({},{})",
-                        record.FileReferenceNumber,
-                        record_path.display()
-                    );
+                    // println!(
+                    //     "++ ({},{})",
+                    //     record.FileReferenceNumber,
+                    //     record_path.display()
+                    // );
                     cache.put(record.FileReferenceNumber, record_path.clone());
                 }
 
