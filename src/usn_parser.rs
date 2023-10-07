@@ -1,3 +1,6 @@
+use lru::LruCache;
+use std::num::NonZeroUsize;
+
 use crate::safe_handle;
 
 use std::{
@@ -44,8 +47,6 @@ pub fn get_volume_handle(volume_root: &str) -> anyhow::Result<SafeHandle> {
         )?
     };
 
-    println!("volume handle = {:?}", volume_handle);
-
     Ok(SafeHandle(volume_handle))
 }
 
@@ -80,6 +81,8 @@ pub fn read_mft(
     };
     let mut buffer = [0u8; 256 * 1024];
     let mut bytes_read: u32 = 0;
+
+    let mut cache: LruCache<u64, PathBuf> = LruCache::new(NonZeroUsize::new(4 * 1024).unwrap());
 
     loop {
         let enum_result = unsafe {
@@ -121,6 +124,16 @@ pub fn read_mft(
                 break;
             }
 
+            if let Some(record_path) = cache.get(&record.FileReferenceNumber) {
+                println!(
+                    "MFT record cached, ({},{})",
+                    record.FileReferenceNumber,
+                    record_path.display()
+                );
+                offset += record.RecordLength;
+                continue;
+            }
+
             let file_name_len = record.FileNameLength as usize / std::mem::size_of::<u16>();
 
             // Do not perform any compile-time pointer arithmetic using FileName.
@@ -135,15 +148,38 @@ pub fn read_mft(
                     file_name_len,
                 )
             };
-            //let file_name = OsString::from_wide(file_name_u16);
-            let file_name = String::from_utf16_lossy(file_name_u16);
+            let file_name = OsString::from_wide(file_name_u16);
 
-            if let Ok(parent_path) =
+            if let Some(parent_path) = cache.get(&record.ParentFileReferenceNumber) {
+                let record_path = parent_path.join(file_name);
+                //println!("MFT record 1, path = {}", record_path.display());
+            } else if let Ok(parent_path) =
                 file_id_to_path(volume_handle, record.ParentFileReferenceNumber)
             {
+                println!(
+                    "+ ({},{})",
+                    record.ParentFileReferenceNumber,
+                    parent_path.display()
+                );
+                cache.put(record.ParentFileReferenceNumber, parent_path.clone());
                 let record_path = parent_path.join(file_name);
 
-                println!("MFT record, path = {}", record_path.display());
+                if record.FileAttributes & FileSystem::FILE_ATTRIBUTE_DIRECTORY.0 != 0 {
+                    println!(
+                        "++ ({},{})",
+                        record.FileReferenceNumber,
+                        record_path.display()
+                    );
+                    cache.put(record.FileReferenceNumber, record_path.clone());
+                }
+
+                // println!(
+                //     "MFT record 2, ({},{})",
+                //     record.FileReferenceNumber,
+                //     record_path.display()
+                // );
+            } else {
+                //Skip files we don't have access to
             }
 
             offset += record.RecordLength;
@@ -221,8 +257,7 @@ pub fn monitor_usn_journal(
                     file_name_len,
                 )
             };
-            //let file_name = OsString::from_wide(file_name_u16);
-            let file_name = String::from_utf16_lossy(file_name_u16);
+            let file_name = OsString::from_wide(file_name_u16);
 
             if let Ok(parent_path) =
                 file_id_to_path(volume_handle, record.ParentFileReferenceNumber)
