@@ -1,8 +1,6 @@
 use lru::LruCache;
 use std::num::NonZeroUsize;
 
-use crate::safe_handle;
-
 use std::{
     default::Default,
     ffi::{c_void, OsString},
@@ -13,7 +11,6 @@ use std::{
 };
 
 use anyhow::Context;
-use safe_handle::SafeHandle;
 use windows::{
     core::HSTRING,
     Win32::{
@@ -32,9 +29,11 @@ use windows::{
     },
 };
 
+use crate::handle::SafeFileHandle;
+
 type Usn = i64;
 
-pub fn get_volume_handle(volume_root: &str) -> anyhow::Result<SafeHandle> {
+pub fn get_volume_handle(volume_root: &str) -> anyhow::Result<SafeFileHandle> {
     let volume_handle = unsafe {
         CreateFileW(
             &HSTRING::from(volume_root),
@@ -47,10 +46,10 @@ pub fn get_volume_handle(volume_root: &str) -> anyhow::Result<SafeHandle> {
         )?
     };
 
-    Ok(SafeHandle(volume_handle))
+    Ok(SafeFileHandle(volume_handle))
 }
 
-pub fn query_usn_state(volume_handle: &SafeHandle) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
+pub fn query_usn_state(volume_handle: &SafeFileHandle) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
     let journal_data = USN_JOURNAL_DATA_V0::default();
     let query_journal_bytes_return = 0u32;
 
@@ -71,7 +70,7 @@ pub fn query_usn_state(volume_handle: &SafeHandle) -> anyhow::Result<USN_JOURNAL
 }
 
 pub fn read_mft(
-    volume_handle: &SafeHandle,
+    volume_handle: &SafeFileHandle,
     journal_data: &USN_JOURNAL_DATA_V0,
 ) -> anyhow::Result<()> {
     let mut mft_enum_data = Ioctl::MFT_ENUM_DATA_V0 {
@@ -192,7 +191,7 @@ pub fn read_mft(
 }
 
 pub fn monitor_usn_journal(
-    volume_handle: &SafeHandle,
+    volume_handle: &SafeFileHandle,
     journal_data: &USN_JOURNAL_DATA_V0,
 ) -> anyhow::Result<()> {
     let mut read_data = READ_USN_JOURNAL_DATA_V0 {
@@ -272,7 +271,7 @@ pub fn monitor_usn_journal(
     }
 }
 
-fn file_id_to_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<PathBuf> {
+fn file_id_to_path(volume_handle: &SafeFileHandle, file_id: u64) -> anyhow::Result<PathBuf> {
     let file_id_desc = FILE_ID_DESCRIPTOR {
         Type: FileSystem::FileIdType,
         dwSize: size_of::<FileSystem::FILE_ID_DESCRIPTOR>() as u32,
@@ -334,29 +333,4 @@ fn file_id_to_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<P
     let name_u16 = unsafe { slice::from_raw_parts(info.FileName.as_ptr(), name_len) };
     let path = PathBuf::from(OsString::from_wide(name_u16));
     Ok(path)
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::usn_parser::{file_id_to_path, get_volume_handle};
-
-    #[test]
-    fn get_long_path_test() -> anyhow::Result<()> {
-        let volume = "C:";
-        let volume_root = format!(r"\\.\{}", volume);
-        println!("volume_root={}", volume_root);
-
-        let volume_handle = get_volume_handle(&volume_root)?;
-
-        let file_id = 5066549581896872u64;
-
-        let path = file_id_to_path(&volume_handle, file_id)?;
-
-        println!("path = {:#?}", path);
-
-        Ok(())
-    }
-
-    #[test]
-    fn iter_test() {}
 }

@@ -1,9 +1,9 @@
 use windows::Win32::Foundation;
 
 #[derive(Debug)]
-pub struct SafeHandle(pub Foundation::HANDLE);
+pub struct SafeFileHandle(pub Foundation::HANDLE);
 
-impl Drop for SafeHandle {
+impl Drop for SafeFileHandle {
     fn drop(&mut self) {
         if !self.0.is_invalid() {
             if let Err(err) = unsafe { Foundation::CloseHandle(self.0) } {

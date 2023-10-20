@@ -200,6 +200,11 @@ checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
 [[package]]
 name = "usn-change-journal"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "lru",
+ "windows",
+]
 
 [[package]]
 name = "usn-parser"
@@ -208,7 +213,7 @@ dependencies = [
  "anyhow",
  "clap",
  "lru",
- "windows",
+ "usn-change-journal",
 ]
 
 [[package]]

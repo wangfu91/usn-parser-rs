@@ -9,16 +9,6 @@ edition = "2021"
 anyhow = "1.0"
 clap = { version = "4.4", features = ["derive"] }
 lru = "0.12.0"
-
-[dependencies.windows]
-version = "0.51"
-features = [
-    "Win32_Foundation",
-    "Win32_System_IO",
-    "Win32_Storage_FileSystem",
-    "Win32_Security",
-    "Win32_System_WindowsProgramming",
-    "Win32_System_Ioctl",
-]
+usn-change-journal = { path = "../usn-change-journal" }
 
 

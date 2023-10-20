@@ -1,7 +1,5 @@
-mod safe_handle;
-mod usn_parser;
-
 use clap::{Parser, Subcommand};
+use usn_change_journal::journal;
 
 #[derive(Parser, Debug)]
 #[command(name = "usn-parser")]
@@ -31,21 +29,21 @@ fn main() -> anyhow::Result<()> {
     let volume_root = format!(r"\\.\{}", volume);
     // println!("volume_root={}", volume_root);
 
-    let volume_handle = usn_parser::get_volume_handle(&volume_root)?;
+    let volume_handle = journal::get_volume_handle(&volume_root)?;
 
     // println!("volume handle = {:?}", volume_handle);
 
-    let journal_data = usn_parser::query_usn_state(&volume_handle)?;
+    let journal_data = journal::query_usn_state(&volume_handle)?;
 
     // println!("Journal data: {:#?}", journal_data);
 
     match cli.command {
         Commands::Monitor {} => {
-            usn_parser::monitor_usn_journal(&volume_handle, &journal_data)?;
+            journal::monitor_usn_journal(&volume_handle, &journal_data)?;
         }
 
         Commands::Mft {} => {
-            usn_parser::read_mft(&volume_handle, &journal_data)?;
+            journal::read_mft(&volume_handle, &journal_data)?;
         }
     }
 
