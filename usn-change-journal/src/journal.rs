@@ -14,7 +14,7 @@ use anyhow::Context;
 use windows::{
     core::HSTRING,
     Win32::{
-        Foundation::{self, ERROR_HANDLE_EOF, HANDLE},
+        Foundation::{self, ERROR_HANDLE_EOF},
         Storage::FileSystem::{
             self, CreateFileW, FILE_FLAGS_AND_ATTRIBUTES, FILE_GENERIC_READ, FILE_ID_DESCRIPTOR,
             FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
@@ -45,7 +45,7 @@ impl UsnJournal {
                 None,
                 OPEN_EXISTING,
                 FILE_FLAGS_AND_ATTRIBUTES::default(),
-                HANDLE::default(),
+                None,
             )?
         };
 
