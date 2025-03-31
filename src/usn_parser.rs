@@ -43,7 +43,7 @@ pub fn get_volume_handle(volume_root: &str) -> anyhow::Result<SafeHandle> {
             None,
             OPEN_EXISTING,
             FILE_FLAGS_AND_ATTRIBUTES::default(),
-            HANDLE::default(),
+            None,
         )?
     };
 
