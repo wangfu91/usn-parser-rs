@@ -1,11 +1,9 @@
 use lru::LruCache;
 use std::num::NonZeroUsize;
 
-use crate::safe_handle;
-
 use std::{
     default::Default,
-    ffi::{c_void, OsString},
+    ffi::{OsString, c_void},
     mem::{self, size_of},
     os::windows::prelude::OsStringExt,
     path::PathBuf,
@@ -13,9 +11,7 @@ use std::{
 };
 
 use anyhow::Context;
-use safe_handle::SafeHandle;
 use windows::{
-    core::HSTRING,
     Win32::{
         Foundation::{self, ERROR_HANDLE_EOF, HANDLE},
         Storage::FileSystem::{
@@ -23,18 +19,19 @@ use windows::{
             FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
         },
         System::{
+            IO::DeviceIoControl,
             Ioctl::{
                 self, FSCTL_QUERY_USN_JOURNAL, FSCTL_READ_USN_JOURNAL, READ_USN_JOURNAL_DATA_V0,
                 USN_JOURNAL_DATA_V0, USN_RECORD_V2,
             },
-            IO::DeviceIoControl,
         },
     },
+    core::HSTRING,
 };
 
 type Usn = i64;
 
-pub fn get_volume_handle(volume_root: &str) -> anyhow::Result<SafeHandle> {
+pub fn get_volume_handle(volume_root: &str) -> anyhow::Result<HANDLE> {
     let volume_handle = unsafe {
         CreateFileW(
             &HSTRING::from(volume_root),
@@ -47,16 +44,16 @@ pub fn get_volume_handle(volume_root: &str) -> anyhow::Result<SafeHandle> {
         )?
     };
 
-    Ok(SafeHandle(volume_handle))
+    Ok(volume_handle)
 }
 
-pub fn query_usn_state(volume_handle: &SafeHandle) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
+pub fn query_usn_state(volume_handle: HANDLE) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
     let journal_data = USN_JOURNAL_DATA_V0::default();
     let query_journal_bytes_return = 0u32;
 
     unsafe {
         DeviceIoControl(
-            volume_handle.0,
+            volume_handle,
             FSCTL_QUERY_USN_JOURNAL,
             None,
             0,
@@ -70,10 +67,7 @@ pub fn query_usn_state(volume_handle: &SafeHandle) -> anyhow::Result<USN_JOURNAL
     Ok(journal_data)
 }
 
-pub fn read_mft(
-    volume_handle: &SafeHandle,
-    journal_data: &USN_JOURNAL_DATA_V0,
-) -> anyhow::Result<()> {
+pub fn read_mft(volume_handle: HANDLE, journal_data: &USN_JOURNAL_DATA_V0) -> anyhow::Result<()> {
     let mut mft_enum_data = Ioctl::MFT_ENUM_DATA_V0 {
         StartFileReferenceNumber: 0,
         LowUsn: 0,
@@ -87,7 +81,7 @@ pub fn read_mft(
     loop {
         let enum_result = unsafe {
             DeviceIoControl(
-                volume_handle.0,
+                volume_handle,
                 Ioctl::FSCTL_ENUM_USN_DATA,
                 Some(&mft_enum_data as *const _ as _),
                 size_of::<Ioctl::MFT_ENUM_DATA_V0>() as u32,
@@ -192,7 +186,7 @@ pub fn read_mft(
 }
 
 pub fn monitor_usn_journal(
-    volume_handle: &SafeHandle,
+    volume_handle: HANDLE,
     journal_data: &USN_JOURNAL_DATA_V0,
 ) -> anyhow::Result<()> {
     let mut read_data = READ_USN_JOURNAL_DATA_V0 {
@@ -210,7 +204,7 @@ pub fn monitor_usn_journal(
     loop {
         unsafe {
             DeviceIoControl(
-                volume_handle.0,
+                volume_handle,
                 FSCTL_READ_USN_JOURNAL,
                 Some(&read_data as *const _ as *mut _),
                 size_of::<READ_USN_JOURNAL_DATA_V0>() as u32,
@@ -272,7 +266,7 @@ pub fn monitor_usn_journal(
     }
 }
 
-fn file_id_to_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<PathBuf> {
+fn file_id_to_path(volume_handle: HANDLE, file_id: u64) -> anyhow::Result<PathBuf> {
     let file_id_desc = FILE_ID_DESCRIPTOR {
         Type: FileSystem::FileIdType,
         dwSize: size_of::<FileSystem::FILE_ID_DESCRIPTOR>() as u32,
@@ -283,7 +277,7 @@ fn file_id_to_path(volume_handle: &SafeHandle, file_id: u64) -> anyhow::Result<P
 
     let file_handle = unsafe {
         FileSystem::OpenFileById(
-            volume_handle.0,
+            volume_handle,
             &file_id_desc,
             FileSystem::FILE_GENERIC_READ.0,
             FileSystem::FILE_SHARE_READ
@@ -350,7 +344,7 @@ mod tests {
 
         let file_id = 5066549581896872u64;
 
-        let path = file_id_to_path(&volume_handle, file_id)?;
+        let path = file_id_to_path(volume_handle, file_id)?;
 
         println!("path = {:#?}", path);
 
