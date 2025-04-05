@@ -1,7 +1,7 @@
 mod mft;
 mod path_resolver;
 mod usn_entry;
-mod usn_info;
+mod usn_journal;
 //mod usn_parser;
 mod utils;
 
@@ -38,7 +38,7 @@ fn main() -> anyhow::Result<()> {
 
     println!("volume handle = {:?}", volume_handle);
 
-    let journal_data = usn_info::query_usn_info(volume_handle)?;
+    let journal_data = usn_journal::query_usn_info(volume_handle)?;
 
     println!("Journal data: {:#?}", journal_data);
 
@@ -54,7 +54,7 @@ fn main() -> anyhow::Result<()> {
             for entry in mft {
                 let full_path =
                     path_resolver.resolve_path(entry.fid, entry.parent_fid, &entry.file_name);
-                println!("fid={:?}, path={:?}", entry.fid, full_path);
+                //println!("fid={:?}, path={:?}", entry.fid, full_path);
             }
         }
     }

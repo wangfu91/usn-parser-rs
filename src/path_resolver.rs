@@ -41,6 +41,11 @@ impl PathResolver {
         if let Ok(parent_path) =
             utils::file_id_to_path(self.volume_handle, self.drive_letter, parent_fid)
         {
+            println!(
+                "fid --> path : {} --> {:?}",
+                parent_fid,
+                parent_path.display()
+            );
             let path = parent_path.join(file_name);
             self.fid_path_cache.put(parent_fid, parent_path);
             self.fid_path_cache.put(fid, path.clone());

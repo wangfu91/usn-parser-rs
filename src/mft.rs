@@ -53,15 +53,12 @@ impl Mft {
             )
         } {
             if err.code() == ERROR_HANDLE_EOF.into() {
-                println!("Done reading MFT data");
                 return Ok(false);
             }
 
             println!("Error reading MFT data: {}", err);
             return Err(err.into());
         }
-
-        println!("Read {} bytes from MFT", self.bytes_read);
 
         Ok(true)
     }
@@ -100,10 +97,7 @@ impl Iterator for Mft {
     fn next(&mut self) -> Option<Self::Item> {
         match self.find_next_entry() {
             Ok(Some(record)) => Some(UsnEntry::new(record)),
-            Ok(None) => {
-                println!("No more entries to read");
-                None
-            }
+            Ok(None) => None,
             Err(err) => {
                 println!("Error finding next entry: {}", err);
                 None
