@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::Context;
+use chrono::{DateTime, FixedOffset, TimeZone, Utc};
 use windows::{
     Win32::{
         Foundation::{self, HANDLE},
@@ -103,4 +104,73 @@ pub fn file_id_to_path(volume_handle: HANDLE, file_id: u64) -> anyhow::Result<Pa
     let name_u16 = unsafe { std::slice::from_raw_parts(info.FileName.as_ptr(), name_len) };
     let path = PathBuf::from(OsString::from_wide(name_u16));
     Ok(path)
+}
+
+/// Converts a Windows FILETIME (64-bit value, number of 100-nanosecond intervals since January 1, 1601 UTC)
+/// to a chrono DateTime<FixedOffset>.
+pub fn filetime_to_datetime(filetime: i64) -> DateTime<FixedOffset> {
+    // Number of 100-nanosecond intervals between 1601-01-01 and 1970-01-01
+    const WINDOWS_TO_UNIX_EPOCH: i64 = 116444736000000000;
+
+    // Convert to microseconds (10 100-nanosecond intervals = 1 microsecond)
+    let unix_time_micros = (filetime - WINDOWS_TO_UNIX_EPOCH) / 10;
+
+    // Convert to seconds and nanoseconds
+    let unix_time_secs = unix_time_micros / 1_000_000;
+    let unix_time_nsecs = ((unix_time_micros % 1_000_000) * 1000) as u32;
+
+    // Create DateTime from timestamp with UTC timezone
+    Utc.timestamp_opt(unix_time_secs, unix_time_nsecs)
+        .single() // Get the single valid timestamp or None
+        .unwrap_or_else(|| Utc.timestamp_nanos(0)) // Fallback to epoch if invalid
+        .with_timezone(&FixedOffset::east_opt(0).unwrap()) // Convert to FixedOffset
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeZone, Timelike, Utc};
+
+    #[test]
+    fn test_filetime_to_datetime() {
+        // Test case 1: A known Windows FILETIME (2020-01-01 12:00:00 UTC)
+        // 132224440000000000 = January 1, 2020 12:00:00 UTC in FILETIME
+        let filetime = 132224440000000000;
+        let expected = Utc
+            .with_ymd_and_hms(2020, 1, 1, 12, 0, 0)
+            .unwrap()
+            .with_timezone(&FixedOffset::east_opt(0).unwrap());
+        let result = filetime_to_datetime(filetime);
+        assert_eq!(result, expected);
+
+        // Test case 2: Windows FILETIME epoch (1601-01-01 00:00:00 UTC)
+        let filetime = 0;
+        let expected = Utc
+            .with_ymd_and_hms(1601, 1, 1, 0, 0, 0)
+            .unwrap()
+            .with_timezone(&FixedOffset::east_opt(0).unwrap());
+        let result = filetime_to_datetime(filetime);
+        assert_eq!(result, expected);
+
+        // Test case 3: Unix epoch (1970-01-01 00:00:00 UTC)
+        let filetime = 116444736000000000; // Windows to Unix epoch constant
+        let expected = Utc
+            .with_ymd_and_hms(1970, 1, 1, 0, 0, 0)
+            .unwrap()
+            .with_timezone(&FixedOffset::east_opt(0).unwrap());
+        let result = filetime_to_datetime(filetime);
+        assert_eq!(result, expected);
+
+        // Test case 4: Precision test with microseconds
+        // 132224440001234560 = January 1, 2020 12:00:00.123456 UTC in FILETIME
+        let filetime = 132224440001234560;
+        let expected = Utc
+            .with_ymd_and_hms(2020, 1, 1, 12, 0, 0)
+            .unwrap()
+            .with_nanosecond(123456000)
+            .unwrap()
+            .with_timezone(&FixedOffset::east_opt(0).unwrap());
+        let result = filetime_to_datetime(filetime);
+        assert_eq!(result, expected);
+    }
 }

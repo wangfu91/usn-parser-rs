@@ -1,8 +1,10 @@
 mod mft;
+mod usn_entry;
 mod usn_parser;
 mod utils;
 
 use clap::{Parser, Subcommand};
+use mft::MFT;
 
 #[derive(Parser, Debug)]
 #[command(name = "usn-parser")]
@@ -43,7 +45,17 @@ fn main() -> anyhow::Result<()> {
         }
 
         Commands::Mft {} => {
-            mft::read_mft(volume_handle, &journal_data)?;
+            //mft::read_mft(volume_handle, &journal_data)?;
+
+            let mft = MFT::new(volume_handle, journal_data.NextUsn);
+            for entry in mft {
+                println!(
+                    "File ID: {}, Parent ID: {}, File Name: {}",
+                    entry.fid,
+                    entry.parent_fid,
+                    entry.file_name.to_string_lossy()
+                );
+            }
         }
     }
 
