@@ -11,6 +11,7 @@ use chrono::{DateTime, FixedOffset};
 
 use crate::utils;
 
+#[derive(Debug)]
 pub struct UsnEntry {
     record_length: u32,
     pub usn: i64,

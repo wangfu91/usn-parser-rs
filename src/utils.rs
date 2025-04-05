@@ -42,7 +42,11 @@ pub fn get_volume_handle(volume: &str) -> anyhow::Result<HANDLE> {
     Ok(volume_handle)
 }
 
-pub fn file_id_to_path(volume_handle: HANDLE, file_id: u64) -> anyhow::Result<PathBuf> {
+pub fn file_id_to_path(
+    volume_handle: HANDLE,
+    drive_letter: char,
+    file_id: u64,
+) -> anyhow::Result<PathBuf> {
     let file_id_desc = FILE_ID_DESCRIPTOR {
         Type: FileSystem::FileIdType,
         dwSize: size_of::<FileSystem::FILE_ID_DESCRIPTOR>() as u32,
@@ -102,8 +106,19 @@ pub fn file_id_to_path(volume_handle: HANDLE, file_id: u64) -> anyhow::Result<Pa
     let info = &body[0];
     let name_len = info.FileNameLength as usize / size_of::<u16>();
     let name_u16 = unsafe { std::slice::from_raw_parts(info.FileName.as_ptr(), name_len) };
-    let path = PathBuf::from(OsString::from_wide(name_u16));
-    Ok(path)
+    let sub_path = OsString::from_wide(name_u16);
+    // Only convert to uppercase if it's lowercase
+    let drive_char = if drive_letter.is_ascii_lowercase() {
+        drive_letter.to_ascii_uppercase()
+    } else {
+        drive_letter
+    };
+
+    // Create the full path directly with a single allocation
+    let mut full_path = PathBuf::new();
+    full_path.push(format!("{}:\\", drive_char));
+    full_path.push(sub_path);
+    Ok(full_path)
 }
 
 /// Converts a Windows FILETIME (64-bit value, number of 100-nanosecond intervals since January 1, 1601 UTC)

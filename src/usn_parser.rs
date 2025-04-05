@@ -29,7 +29,7 @@ use windows::{
     core::HSTRING,
 };
 
-use crate::utils::{file_id_to_path, get_volume_handle};
+use crate::{usn_info, utils};
 
 type Usn = i64;
 
@@ -41,8 +41,8 @@ pub struct UsnJournal {
 
 impl UsnJournal {
     pub fn new(volume: &str) -> anyhow::Result<Self> {
-        let volume_handle = get_volume_handle(volume)?;
-        let journal_data = query_usn_info(volume_handle)?;
+        let volume_handle = utils::get_volume_handle(volume)?;
+        let journal_data = usn_info::query_usn_info(volume_handle)?;
 
         Ok(Self {
             volume: volume.to_string(),
@@ -50,26 +50,6 @@ impl UsnJournal {
             journal_data,
         })
     }
-}
-
-pub fn query_usn_info(volume_handle: HANDLE) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
-    let journal_data = USN_JOURNAL_DATA_V0::default();
-    let bytes_return = 0u32;
-
-    unsafe {
-        DeviceIoControl(
-            volume_handle,
-            FSCTL_QUERY_USN_JOURNAL,
-            None,
-            0,
-            Some(&journal_data as *const _ as *mut _),
-            mem::size_of::<USN_JOURNAL_DATA_V0>() as u32,
-            Some(&bytes_return as *const _ as *mut _),
-            None,
-        )
-    }?;
-
-    Ok(journal_data)
 }
 
 pub fn monitor_usn_journal(

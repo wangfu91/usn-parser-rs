@@ -1,10 +1,13 @@
 mod mft;
+mod path_resolver;
 mod usn_entry;
-mod usn_parser;
+mod usn_info;
+//mod usn_parser;
 mod utils;
 
 use clap::{Parser, Subcommand};
-use mft::MFT;
+use mft::Mft;
+use path_resolver::PathResolver;
 
 #[derive(Parser, Debug)]
 #[command(name = "usn-parser")]
@@ -35,26 +38,23 @@ fn main() -> anyhow::Result<()> {
 
     println!("volume handle = {:?}", volume_handle);
 
-    let journal_data = usn_parser::query_usn_info(volume_handle)?;
+    let journal_data = usn_info::query_usn_info(volume_handle)?;
 
     println!("Journal data: {:#?}", journal_data);
 
+    let mut path_resolver = PathResolver::new(volume_handle, volume.chars().next().unwrap());
+
     match cli.command {
         Commands::Monitor {} => {
-            usn_parser::monitor_usn_journal(volume_handle, &journal_data)?;
+            //usn_parser::monitor_usn_journal(volume_handle, &journal_data)?;
         }
 
         Commands::Mft {} => {
-            //mft::read_mft(volume_handle, &journal_data)?;
-
-            let mft = MFT::new(volume_handle, journal_data.NextUsn);
+            let mft = Mft::new(volume_handle, journal_data.NextUsn);
             for entry in mft {
-                println!(
-                    "File ID: {}, Parent ID: {}, File Name: {}",
-                    entry.fid,
-                    entry.parent_fid,
-                    entry.file_name.to_string_lossy()
-                );
+                let full_path =
+                    path_resolver.resolve_path(entry.fid, entry.parent_fid, &entry.file_name);
+                println!("fid={:?}, path={:?}", entry.fid, full_path);
             }
         }
     }
