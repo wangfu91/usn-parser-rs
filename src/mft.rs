@@ -76,7 +76,7 @@ impl Mft {
         if self.get_data()? {
             // Each call to FSCTL_ENUM_USN_DATA retrieves the starting point for the subsequent call as the first entry in the output buffer.
             self.next_start_fid = unsafe { std::ptr::read(self.buffer.as_ptr() as *const u64) };
-            self.offset = std::mem::size_of::<u64>() as u32;
+            self.offset = size_of::<u64>() as u32;
             if self.offset < self.bytes_read {
                 let record = unsafe {
                     &*(self.buffer.as_ptr().offset(self.offset as isize) as *const USN_RECORD_V2)
@@ -99,7 +99,7 @@ impl Iterator for Mft {
             Ok(Some(record)) => Some(UsnEntry::new(record)),
             Ok(None) => None,
             Err(err) => {
-                println!("Error finding next entry: {}", err);
+                println!("Error finding next MFT entry: {}", err);
                 None
             }
         }

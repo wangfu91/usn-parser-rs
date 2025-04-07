@@ -2,12 +2,12 @@ mod mft;
 mod path_resolver;
 mod usn_entry;
 mod usn_journal;
-//mod usn_parser;
 mod utils;
 
 use clap::{Parser, Subcommand};
 use mft::Mft;
 use path_resolver::PathResolver;
+use usn_journal::UsnJournal;
 
 #[derive(Parser, Debug)]
 #[command(name = "usn-parser")]
@@ -46,7 +46,19 @@ fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Monitor {} => {
-            //usn_parser::monitor_usn_journal(volume_handle, &journal_data)?;
+            let usn_journal = UsnJournal::new(
+                volume_handle,
+                journal_data.UsnJournalID,
+                journal_data.NextUsn,
+            );
+            for entry in usn_journal {
+                let full_path =
+                    path_resolver.resolve_path(entry.fid, entry.parent_fid, &entry.file_name);
+                println!(
+                    "usn={:?}, file_id={:?}, path={:?}",
+                    entry.usn, entry.fid, full_path
+                );
+            }
         }
 
         Commands::Mft {} => {
@@ -54,7 +66,7 @@ fn main() -> anyhow::Result<()> {
             for entry in mft {
                 let full_path =
                     path_resolver.resolve_path(entry.fid, entry.parent_fid, &entry.file_name);
-                //println!("fid={:?}, path={:?}", entry.fid, full_path);
+                println!("fid={:?}, path={:?}", entry.fid, full_path);
             }
         }
     }
