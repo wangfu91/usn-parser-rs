@@ -103,7 +103,7 @@ pub fn file_id_to_path(
     unsafe { Foundation::CloseHandle(file_handle) }?;
 
     let (_, body, _) = unsafe { info_buffer.align_to::<FileSystem::FILE_NAME_INFO>() };
-    let info = &body[0];
+    let info = body.first().context("Failed to read FILE_NAME_INFO")?;
     let name_len = info.FileNameLength as usize / size_of::<u16>();
     let name_u16 = unsafe { std::slice::from_raw_parts(info.FileName.as_ptr(), name_len) };
     let sub_path = OsString::from_wide(name_u16);
