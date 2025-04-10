@@ -12,22 +12,41 @@ type Usn = i64;
 
 pub struct Mft {
     volume_handle: HANDLE,
-    high_usn: Usn,
     buffer: [u8; 64 * 1024],
     bytes_read: u32,
     offset: u32,
     next_start_fid: u64,
+    low_usn: Usn,
+    high_usn: Usn,
+}
+
+pub struct MftEnumOptions {
+    pub low_usn: Usn,
+    pub high_usn: Usn,
 }
 
 impl Mft {
-    pub fn new(volume_handle: HANDLE, high_usn: Usn) -> Self {
+    pub fn new(volume_handle: HANDLE) -> Self {
         Mft {
             volume_handle,
-            high_usn,
             buffer: [0u8; 64 * 1024],
             bytes_read: 0,
             offset: 0,
             next_start_fid: 0,
+            low_usn: 0,
+            high_usn: i64::MAX,
+        }
+    }
+
+    pub fn new_with_options(volume_handle: HANDLE, options: MftEnumOptions) -> Self {
+        Mft {
+            volume_handle,
+            buffer: [0u8; 64 * 1024],
+            bytes_read: 0,
+            offset: 0,
+            next_start_fid: options.low_usn as u64,
+            low_usn: options.low_usn,
+            high_usn: options.high_usn,
         }
     }
 

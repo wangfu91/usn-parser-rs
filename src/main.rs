@@ -90,7 +90,7 @@ fn main() -> anyhow::Result<()> {
         }
 
         Commands::Mft {} => {
-            let mft = Mft::new(volume_handle, journal_data.NextUsn);
+            let mft = Mft::new(volume_handle);
             for entry in mft {
                 let full_path =
                     path_resolver.resolve_path(entry.fid, entry.parent_fid, &entry.file_name);
