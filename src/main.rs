@@ -31,7 +31,7 @@ mod utils;
 use clap::{Parser, Subcommand};
 use mft::Mft;
 use path_resolver::PathResolver;
-use usn_journal::UsnJournal;
+use usn_journal::{UsnJournal, UsnJournalEnumOptions};
 
 #[derive(Parser, Debug)]
 #[command(name = "usn-parser")]
@@ -70,11 +70,15 @@ fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Monitor {} => {
-            let usn_journal = UsnJournal::new(
-                volume_handle,
-                journal_data.UsnJournalID,
-                journal_data.NextUsn,
-            );
+            let options = UsnJournalEnumOptions {
+                start_usn: journal_data.NextUsn,
+                reason_mask: 0xFFFFFFFF,
+                only_on_close: true,
+                timeout: 0,
+                wait_for_more: true,
+            };
+            let usn_journal =
+                UsnJournal::new_with_options(volume_handle, journal_data.UsnJournalID, options);
             for entry in usn_journal {
                 let full_path =
                     path_resolver.resolve_path(entry.fid, entry.parent_fid, &entry.file_name);

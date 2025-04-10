@@ -15,26 +15,6 @@ use crate::usn_entry::UsnEntry;
 
 type Usn = i64;
 
-pub fn query_usn_info(volume_handle: HANDLE) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
-    let journal_data = USN_JOURNAL_DATA_V0::default();
-    let bytes_return = 0u32;
-
-    unsafe {
-        DeviceIoControl(
-            volume_handle,
-            FSCTL_QUERY_USN_JOURNAL,
-            None,
-            0,
-            Some(&journal_data as *const _ as *mut _),
-            std::mem::size_of::<USN_JOURNAL_DATA_V0>() as u32,
-            Some(&bytes_return as *const _ as *mut _),
-            None,
-        )
-    }?;
-
-    Ok(journal_data)
-}
-
 pub struct UsnJournal {
     pub volume_handle: HANDLE,
     pub journal_id: u64,
@@ -42,27 +22,62 @@ pub struct UsnJournal {
     bytes_read: u32,
     offset: u32,
     next_start_usn: Usn,
+    reason_mask: u32,
+    return_only_on_close: u32,
+    timeout: u64,
+    bytes_to_wait_for: u64,
+}
+
+pub struct UsnJournalEnumOptions {
+    pub start_usn: Usn,
+    pub reason_mask: u32,
+    pub only_on_close: bool,
+    pub timeout: u64,
+    pub wait_for_more: bool,
 }
 
 impl UsnJournal {
-    pub fn new(volume_handle: HANDLE, journal_id: u64, start_usn: Usn) -> Self {
+    pub fn new(volume_handle: HANDLE, journal_id: u64) -> Self {
         Self {
             volume_handle,
             journal_id,
             buffer: [0u8; 64 * 1024],
             bytes_read: 0,
             offset: 0,
-            next_start_usn: start_usn,
+            next_start_usn: 0,
+            reason_mask: 0xFFFFFFFF,
+            return_only_on_close: 0,
+            timeout: 0,
+            bytes_to_wait_for: 1,
+        }
+    }
+
+    pub fn new_with_options(
+        volume_handle: HANDLE,
+        journal_id: u64,
+        options: UsnJournalEnumOptions,
+    ) -> Self {
+        Self {
+            volume_handle,
+            journal_id,
+            buffer: [0u8; 64 * 1024],
+            bytes_read: 0,
+            offset: 0,
+            next_start_usn: options.start_usn,
+            reason_mask: options.reason_mask,
+            return_only_on_close: options.only_on_close as u32,
+            timeout: options.timeout,
+            bytes_to_wait_for: options.wait_for_more as u64,
         }
     }
 
     fn get_data(&mut self) -> anyhow::Result<bool> {
         let read_data = READ_USN_JOURNAL_DATA_V0 {
             StartUsn: self.next_start_usn,
-            ReasonMask: 0xFFFFFFFF,
-            ReturnOnlyOnClose: 0,
-            Timeout: 0,
-            BytesToWaitFor: 1,
+            ReasonMask: self.reason_mask,
+            ReturnOnlyOnClose: self.return_only_on_close,
+            Timeout: self.timeout,
+            BytesToWaitFor: self.bytes_to_wait_for,
             UsnJournalID: self.journal_id,
         };
 
@@ -133,6 +148,26 @@ impl Iterator for UsnJournal {
             }
         }
     }
+}
+
+pub fn query_usn_info(volume_handle: HANDLE) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
+    let journal_data = USN_JOURNAL_DATA_V0::default();
+    let bytes_return = 0u32;
+
+    unsafe {
+        DeviceIoControl(
+            volume_handle,
+            FSCTL_QUERY_USN_JOURNAL,
+            None,
+            0,
+            Some(&journal_data as *const _ as *mut _),
+            std::mem::size_of::<USN_JOURNAL_DATA_V0>() as u32,
+            Some(&bytes_return as *const _ as *mut _),
+            None,
+        )
+    }?;
+
+    Ok(journal_data)
 }
 
 #[cfg(test)]
