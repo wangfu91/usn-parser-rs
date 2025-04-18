@@ -1,0 +1,26 @@
+[package]
+name = "usn-journal-rs"
+version = "0.1.0"
+edition = "2021" # Or your preferred edition
+description = "A library to read the Windows USN change journal"
+license = "MIT" # Or your chosen license
+repository = "https://github.com/wangfu91/usn-parser-rs" # Optional: Add your repo URL
+keywords = ["usn", "journal", "windows", "filesystem"] # Optional: Add relevant keywords
+categories = ["filesystem", "os::windows-apis"] # Optional: Add relevant categories
+
+[dependencies]
+anyhow = "1.0"
+chrono = "0.4"
+log = "0.4"
+lru = "0.14"
+
+[dependencies.windows]
+version = "0.61" # Use a compatible version
+features = [
+    "Win32_Foundation",
+    "Win32_System_IO",
+    "Win32_Storage_FileSystem",
+    "Win32_Security",
+    "Win32_System_WindowsProgramming",
+    "Win32_System_Ioctl",
+]

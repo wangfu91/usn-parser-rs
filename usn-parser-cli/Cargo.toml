@@ -1,0 +1,15 @@
+[package]
+name = "usn-parser-cli"
+version = "0.1.0"
+edition = "2021" # Or your preferred edition
+
+[dependencies]
+usn-journal-rs = { path = "../usn-journal-rs" } # Depend on the local library crate
+clap = { version = "4.5", features = ["derive"] }
+log = "0.4" # Keep log if used directly in main.rs
+anyhow = "1.0" # Keep anyhow if used directly in main.rs
+chrono = "0.4" # Keep chrono if used directly in main.rs
+
+[[bin]]
+name = "usn-parser" # Optional: specify the binary name if different from the crate name
+path = "src/main.rs"
