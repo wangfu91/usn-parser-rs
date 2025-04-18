@@ -55,7 +55,7 @@ impl Mft {
         // On the first call, set the starting point, the StartFileReferenceNumber member of the MFT_ENUM_DATA structure, to (DWORDLONG)0.
         let mft_enum_data = Ioctl::MFT_ENUM_DATA_V0 {
             StartFileReferenceNumber: self.next_start_fid,
-            LowUsn: 0,
+            LowUsn: self.low_usn,
             HighUsn: self.high_usn,
         };
 
