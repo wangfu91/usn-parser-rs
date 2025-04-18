@@ -3,11 +3,13 @@ use std::{ffi::c_void, mem::size_of};
 use windows::Win32::{
     Foundation::{ERROR_HANDLE_EOF, HANDLE},
     System::{
-        IO::DeviceIoControl,
         Ioctl::{
-            FSCTL_QUERY_USN_JOURNAL, FSCTL_READ_USN_JOURNAL, READ_USN_JOURNAL_DATA_V0,
+            CREATE_USN_JOURNAL_DATA, DELETE_USN_JOURNAL_DATA, FSCTL_CREATE_USN_JOURNAL,
+            FSCTL_DELETE_USN_JOURNAL, FSCTL_QUERY_USN_JOURNAL, FSCTL_READ_USN_JOURNAL,
+            READ_USN_JOURNAL_DATA_V0, USN_DELETE_FLAGS, USN_DELETE_FLAG_DELETE,
             USN_JOURNAL_DATA_V0, USN_RECORD_V2,
         },
+        IO::DeviceIoControl,
     },
 };
 
@@ -155,6 +157,12 @@ pub fn query_usn_info(volume_handle: HANDLE) -> anyhow::Result<USN_JOURNAL_DATA_
     let bytes_return = 0u32;
 
     unsafe {
+        // https://learn.microsoft.com/en-us/windows/win32/fileio/using-the-change-journal-identifier
+        // To obtain the identifier of the current change journal on a specified volume,
+        // use the FSCTL_QUERY_USN_JOURNAL control code.
+        // To perform this and all other change journal operations,
+        // you must have system administrator privileges.
+        // That is, you must be a member of the Administrators group.
         DeviceIoControl(
             volume_handle,
             FSCTL_QUERY_USN_JOURNAL,
@@ -168,6 +176,60 @@ pub fn query_usn_info(volume_handle: HANDLE) -> anyhow::Result<USN_JOURNAL_DATA_
     }?;
 
     Ok(journal_data)
+}
+
+pub fn create_usn_journal(
+    volume_handle: HANDLE,
+    max_size: u64,
+    allocation_delta: u64,
+) -> anyhow::Result<()> {
+    let create_data = CREATE_USN_JOURNAL_DATA {
+        MaximumSize: max_size,
+        AllocationDelta: allocation_delta,
+    };
+    let bytes_return = 0u32;
+
+    unsafe {
+        // https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-fsctl_create_usn_journal
+        // FSCTL_CREATE_USN_JOURNAL
+        // Creates an update sequence number (USN) change journal stream on a target volume, or modifies an existing change journal stream.
+        DeviceIoControl(
+            volume_handle,
+            FSCTL_CREATE_USN_JOURNAL,
+            Some(&create_data as *const _ as *mut _),
+            size_of::<CREATE_USN_JOURNAL_DATA>() as u32,
+            None,
+            0,
+            Some(&bytes_return as *const _ as *mut _),
+            None,
+        )
+    }?;
+
+    Ok(())
+}
+
+pub fn delete_usn_journal(volume_handle: HANDLE) -> anyhow::Result<()> {
+    let delete_flags: USN_DELETE_FLAGS = USN_DELETE_FLAG_DELETE;
+    let delete_data = DELETE_USN_JOURNAL_DATA {
+        UsnJournalID: 0,
+        DeleteFlags: delete_flags,
+    };
+    let bytes_return = 0u32;
+
+    unsafe {
+        DeviceIoControl(
+            volume_handle,
+            FSCTL_DELETE_USN_JOURNAL,
+            Some(&delete_data as *const _ as *mut _),
+            size_of::<DELETE_USN_JOURNAL_DATA>() as u32,
+            None,
+            0,
+            Some(&bytes_return as *const _ as *mut _),
+            None,
+        )
+    }?;
+
+    Ok(())
 }
 
 #[cfg(test)]
