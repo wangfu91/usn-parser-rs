@@ -1,5 +1,5 @@
 use std::{
-    ffi::{OsString, c_void},
+    ffi::{c_void, OsString},
     os::windows::ffi::OsStringExt,
     path::PathBuf,
 };
@@ -7,6 +7,7 @@ use std::{
 use anyhow::Context;
 use chrono::{DateTime, FixedOffset, TimeZone, Utc};
 use windows::{
+    core::HSTRING,
     Win32::{
         Foundation::{self, HANDLE},
         Storage::FileSystem::{
@@ -14,7 +15,6 @@ use windows::{
             FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
         },
     },
-    core::HSTRING,
 };
 
 pub fn get_volume_handle(volume: &str) -> anyhow::Result<HANDLE> {
@@ -143,8 +143,129 @@ pub fn filetime_to_datetime(filetime: i64) -> DateTime<FixedOffset> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use super::*;
     use chrono::{TimeZone, Timelike, Utc};
+    use windows::Win32::Storage::Vhd::{
+        AttachVirtualDisk, CreateVirtualDisk, OpenVirtualDisk,
+        ATTACH_VIRTUAL_DISK_FLAG_PERMANENT_LIFETIME, ATTACH_VIRTUAL_DISK_PARAMETERS,
+        ATTACH_VIRTUAL_DISK_PARAMETERS_0, ATTACH_VIRTUAL_DISK_PARAMETERS_0_0,
+        ATTACH_VIRTUAL_DISK_VERSION, ATTACH_VIRTUAL_DISK_VERSION_1, CREATE_VIRTUAL_DISK_FLAG_NONE,
+        CREATE_VIRTUAL_DISK_PARAMETERS, CREATE_VIRTUAL_DISK_PARAMETERS_0,
+        CREATE_VIRTUAL_DISK_PARAMETERS_0_0, CREATE_VIRTUAL_DISK_PARAMETERS_DEFAULT_BLOCK_SIZE,
+        CREATE_VIRTUAL_DISK_PARAMETERS_DEFAULT_SECTOR_SIZE, CREATE_VIRTUAL_DISK_VERSION_1,
+        OPEN_VIRTUAL_DISK_FLAG_NONE, VIRTUAL_DISK_ACCESS_ATTACH_RW, VIRTUAL_DISK_ACCESS_CREATE,
+        VIRTUAL_STORAGE_TYPE, VIRTUAL_STORAGE_TYPE_DEVICE_VHD,
+        VIRTUAL_STORAGE_TYPE_VENDOR_MICROSOFT,
+    };
+
+    pub fn setup() -> anyhow::Result<()> {
+        Ok(())
+    }
+
+    fn create_vhd() -> anyhow::Result<HANDLE> {
+        let create_params = CREATE_VIRTUAL_DISK_PARAMETERS {
+            Version: CREATE_VIRTUAL_DISK_VERSION_1,
+            Anonymous: CREATE_VIRTUAL_DISK_PARAMETERS_0 {
+                Version1: CREATE_VIRTUAL_DISK_PARAMETERS_0_0 {
+                    MaximumSize: 1024 * 1024 * 1024, // 1 GB
+                    BlockSizeInBytes: CREATE_VIRTUAL_DISK_PARAMETERS_DEFAULT_BLOCK_SIZE,
+                    SectorSizeInBytes: CREATE_VIRTUAL_DISK_PARAMETERS_DEFAULT_SECTOR_SIZE,
+                    ..Default::default()
+                },
+            },
+        };
+
+        let storage_type = VIRTUAL_STORAGE_TYPE {
+            DeviceId: VIRTUAL_STORAGE_TYPE_DEVICE_VHD,
+            VendorId: VIRTUAL_STORAGE_TYPE_VENDOR_MICROSOFT,
+        };
+
+        let mut vhd_handle = HANDLE::default();
+
+        // Create a path in the temp directory
+        let mut vhd_path = std::env::temp_dir();
+        vhd_path.push("usn_journal-rs-test.vhd");
+
+        let result = unsafe {
+            CreateVirtualDisk(
+                &storage_type,
+                &HSTRING::from(vhd_path.as_path()),
+                VIRTUAL_DISK_ACCESS_CREATE,
+                None,
+                CREATE_VIRTUAL_DISK_FLAG_NONE,
+                0,
+                &create_params,
+                None,
+                &mut vhd_handle,
+            )
+        };
+
+        if result.is_err() {
+            return Err(anyhow::anyhow!("Failed to create VHD"));
+        }
+
+        Ok(vhd_handle)
+    }
+
+    fn attch_vhd(vhd_path: &Path) -> anyhow::Result<()> {
+        let storage_type = VIRTUAL_STORAGE_TYPE {
+            DeviceId: VIRTUAL_STORAGE_TYPE_DEVICE_VHD,
+            VendorId: VIRTUAL_STORAGE_TYPE_VENDOR_MICROSOFT,
+        };
+
+        let attch_params = ATTACH_VIRTUAL_DISK_PARAMETERS {
+            Version: ATTACH_VIRTUAL_DISK_VERSION_1,
+            Anonymous: ATTACH_VIRTUAL_DISK_PARAMETERS_0 {
+                Version1: ATTACH_VIRTUAL_DISK_PARAMETERS_0_0 { Reserved: 0 },
+            },
+        };
+
+        let mut vhd_handle = HANDLE::default();
+        let open_result = unsafe {
+            OpenVirtualDisk(
+                &storage_type,
+                &HSTRING::from(vhd_path),
+                VIRTUAL_DISK_ACCESS_ATTACH_RW,
+                OPEN_VIRTUAL_DISK_FLAG_NONE,
+                None,
+                &mut vhd_handle,
+            )
+        };
+
+        if open_result.is_err() {
+            return Err(anyhow::anyhow!("Failed to open VHD"));
+        }
+
+        let attach_result = unsafe {
+            AttachVirtualDisk(
+                vhd_handle,
+                None,
+                ATTACH_VIRTUAL_DISK_FLAG_PERMANENT_LIFETIME,
+                0,
+                Some(&attch_params),
+                None,
+            )
+        };
+
+        if attach_result.is_err() {
+            return Err(anyhow::anyhow!("Failed to attach VHD"));
+        }
+
+        // How to format the VHD to NTFS?
+
+        Ok(())
+    }
+
+    #[test]
+    fn create_vhd_test() {
+        let vhd_handle = create_vhd().unwrap();
+        assert!(
+            vhd_handle != HANDLE::default(),
+            "VHD handle should not be default"
+        );
+    }
 
     #[test]
     fn test_filetime_to_datetime() {
