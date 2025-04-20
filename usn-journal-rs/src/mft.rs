@@ -1,8 +1,8 @@
 use windows::Win32::{
     Foundation::{ERROR_HANDLE_EOF, HANDLE},
     System::{
-        IO::DeviceIoControl,
         Ioctl::{self, USN_RECORD_V2},
+        IO::DeviceIoControl,
     },
 };
 
@@ -121,6 +121,28 @@ impl Iterator for Mft {
                 println!("Error finding next MFT entry: {}", err);
                 None
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mft_iter_test() {
+        let volume_letter = "E:\\";
+        let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
+        let mft = Mft::new(volume_handle);
+        for entry in mft {
+            println!("MFT entry: {:?}", entry);
+            // Check if the USN entry is valid
+            assert!(entry.usn >= 0, "USN is not valid");
+            assert!(entry.fid > 0, "File ID is not valid");
+            assert!(!entry.file_name.is_empty(), "File name is not valid");
+            assert!(entry.parent_fid > 0, "Parent File ID is not valid");
+            assert!(entry.reason == 0, "Reason is not valid");
+            assert!(entry.file_attributes.0 > 0, "File attributes are not valid");
         }
     }
 }
