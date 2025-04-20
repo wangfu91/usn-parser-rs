@@ -7,7 +7,7 @@ use windows::Win32::{
             CREATE_USN_JOURNAL_DATA, DELETE_USN_JOURNAL_DATA, FSCTL_CREATE_USN_JOURNAL,
             FSCTL_DELETE_USN_JOURNAL, FSCTL_QUERY_USN_JOURNAL, FSCTL_READ_USN_JOURNAL,
             READ_USN_JOURNAL_DATA_V0, USN_DELETE_FLAGS, USN_DELETE_FLAG_DELETE,
-            USN_JOURNAL_DATA_V0, USN_RECORD_V2,
+            USN_DELETE_FLAG_NOTIFY, USN_JOURNAL_DATA_V0, USN_RECORD_V2,
         },
         IO::DeviceIoControl,
     },
@@ -187,7 +187,6 @@ pub fn create_usn_journal(
         MaximumSize: max_size,
         AllocationDelta: allocation_delta,
     };
-    let bytes_return = 0u32;
 
     unsafe {
         // https://learn.microsoft.com/en-us/windows/win32/api/winioctl/ni-winioctl-fsctl_create_usn_journal
@@ -200,21 +199,22 @@ pub fn create_usn_journal(
             size_of::<CREATE_USN_JOURNAL_DATA>() as u32,
             None,
             0,
-            Some(&bytes_return as *const _ as *mut _),
+            None,
             None,
         )
     }?;
 
+    println!("Created USN journal successfully.");
+
     Ok(())
 }
 
-pub fn delete_usn_journal(volume_handle: HANDLE) -> anyhow::Result<()> {
-    let delete_flags: USN_DELETE_FLAGS = USN_DELETE_FLAG_DELETE;
+pub fn delete_usn_journal(volume_handle: HANDLE, journal_id: u64) -> anyhow::Result<()> {
+    let delete_flags: USN_DELETE_FLAGS = USN_DELETE_FLAG_DELETE | USN_DELETE_FLAG_NOTIFY;
     let delete_data = DELETE_USN_JOURNAL_DATA {
-        UsnJournalID: 0,
+        UsnJournalID: journal_id,
         DeleteFlags: delete_flags,
     };
-    let bytes_return = 0u32;
 
     unsafe {
         DeviceIoControl(
@@ -224,16 +224,40 @@ pub fn delete_usn_journal(volume_handle: HANDLE) -> anyhow::Result<()> {
             size_of::<DELETE_USN_JOURNAL_DATA>() as u32,
             None,
             0,
-            Some(&bytes_return as *const _ as *mut _),
+            None,
             None,
         )
     }?;
+
+    println!("Deleted USN journal successfully.");
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn query_usn_journal_test() {
+        let volume_letter = "E:\\";
+        let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
+        let data = super::query_usn_info(volume_handle).unwrap();
+        eprintln!("journal data: {:?}", data);
+    }
+
+    #[test]
+    fn delete_usn_journal_test() {
+        let volume_letter = "E:\\";
+        let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
+        let data = super::query_usn_info(volume_handle).unwrap();
+        super::delete_usn_journal(volume_handle, data.UsnJournalID).unwrap();
+    }
+
+    #[test]
+    fn create_usn_journal_test() {
+        let volume_letter = "E:\\";
+        let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
+        super::create_usn_journal(volume_handle, 1024 * 1024 * 1024, 1024 * 1024).unwrap();
+    }
 
     #[test]
     fn iter_test() {}
