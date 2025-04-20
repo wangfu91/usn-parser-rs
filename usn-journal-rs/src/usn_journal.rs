@@ -260,5 +260,33 @@ mod tests {
     }
 
     #[test]
-    fn iter_test() {}
+    fn usn_journal_iter_test() {
+        let volume_letter = "E:\\";
+        let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
+        let journal_data = super::query(volume_handle).unwrap();
+        let option = super::UsnJournalEnumOptions {
+            start_usn: 0,
+            reason_mask: 0xFFFFFFFF,
+            only_on_close: false,
+            timeout: 0,
+            wait_for_more: false,
+        };
+        let usn_journal =
+            super::UsnJournal::new_with_options(volume_handle, journal_data.UsnJournalID, option);
+        let mut previous_usn = -1i64;
+        for entry in usn_journal {
+            println!("USN entry: {:?}", entry);
+            // Check if the USN entry is valid
+            assert!(entry.usn >= 0, "USN is not valid");
+            assert!(entry.usn > previous_usn, "USN entries are not in order");
+            assert!(entry.fid > 0, "File ID is not valid");
+            assert!(!entry.file_name.is_empty(), "File name is not valid");
+            assert!(entry.parent_fid > 0, "Parent File ID is not valid");
+            assert!(entry.reason > 0, "Reason is not valid");
+            assert!(entry.file_attributes.0 > 0, "File attributes are not valid");
+            assert!(entry.timestamp.timestamp() > 0, "Timestamp is not valid");
+
+            previous_usn = entry.usn;
+        }
+    }
 }
