@@ -35,7 +35,7 @@ fn main() -> anyhow::Result<()> {
 
     println!("volume handle = {:?}", volume_handle);
 
-    let journal_data = usn_journal::query_usn_info(volume_handle)?;
+    let journal_data = usn_journal::query(volume_handle)?;
 
     println!("Journal data: {:#?}", journal_data);
 

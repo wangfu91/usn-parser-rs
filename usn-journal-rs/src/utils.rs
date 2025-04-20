@@ -209,7 +209,7 @@ mod tests {
         Ok(vhd_handle)
     }
 
-    fn attch_vhd(vhd_path: &Path) -> anyhow::Result<()> {
+    fn attch_vhd_and_format_to_ntfs(vhd_path: &Path) -> anyhow::Result<()> {
         let storage_type = VIRTUAL_STORAGE_TYPE {
             DeviceId: VIRTUAL_STORAGE_TYPE_DEVICE_VHD,
             VendorId: VIRTUAL_STORAGE_TYPE_VENDOR_MICROSOFT,

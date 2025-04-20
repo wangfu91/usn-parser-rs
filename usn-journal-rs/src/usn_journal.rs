@@ -152,7 +152,7 @@ impl Iterator for UsnJournal {
     }
 }
 
-pub fn query_usn_info(volume_handle: HANDLE) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
+pub fn query(volume_handle: HANDLE) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
     let journal_data = USN_JOURNAL_DATA_V0::default();
     let bytes_return = 0u32;
 
@@ -178,7 +178,7 @@ pub fn query_usn_info(volume_handle: HANDLE) -> anyhow::Result<USN_JOURNAL_DATA_
     Ok(journal_data)
 }
 
-pub fn create_usn_journal(
+pub fn create_or_update(
     volume_handle: HANDLE,
     max_size: u64,
     allocation_delta: u64,
@@ -209,7 +209,7 @@ pub fn create_usn_journal(
     Ok(())
 }
 
-pub fn delete_usn_journal(volume_handle: HANDLE, journal_id: u64) -> anyhow::Result<()> {
+pub fn delete(volume_handle: HANDLE, journal_id: u64) -> anyhow::Result<()> {
     let delete_flags: USN_DELETE_FLAGS = USN_DELETE_FLAG_DELETE | USN_DELETE_FLAG_NOTIFY;
     let delete_data = DELETE_USN_JOURNAL_DATA {
         UsnJournalID: journal_id,
@@ -240,7 +240,7 @@ mod tests {
     fn query_usn_journal_test() {
         let volume_letter = "E:\\";
         let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
-        let data = super::query_usn_info(volume_handle).unwrap();
+        let data = super::query(volume_handle).unwrap();
         eprintln!("journal data: {:?}", data);
     }
 
@@ -248,15 +248,15 @@ mod tests {
     fn delete_usn_journal_test() {
         let volume_letter = "E:\\";
         let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
-        let data = super::query_usn_info(volume_handle).unwrap();
-        super::delete_usn_journal(volume_handle, data.UsnJournalID).unwrap();
+        let data = super::query(volume_handle).unwrap();
+        super::delete(volume_handle, data.UsnJournalID).unwrap();
     }
 
     #[test]
     fn create_usn_journal_test() {
         let volume_letter = "E:\\";
         let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
-        super::create_usn_journal(volume_handle, 1024 * 1024 * 1024, 1024 * 1024).unwrap();
+        super::create_or_update(volume_handle, 1024 * 1024 * 1024, 1024 * 1024).unwrap();
     }
 
     #[test]
