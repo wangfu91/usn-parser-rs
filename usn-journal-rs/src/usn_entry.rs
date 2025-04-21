@@ -7,15 +7,14 @@ use windows::Win32::{
     System::Ioctl::USN_RECORD_V2,
 };
 
-use chrono::{DateTime, FixedOffset};
+use chrono::{DateTime, FixedOffset, TimeZone, Utc};
 
 use crate::utils;
 
 #[derive(Debug)]
 pub struct UsnEntry {
-    record_length: u32,
     pub usn: i64,
-    pub timestamp: DateTime<FixedOffset>,
+    pub utc_time: DateTime<Utc>,
     pub fid: u64,
     pub parent_fid: u64,
     pub reason: u32,
@@ -38,10 +37,12 @@ impl UsnEntry {
             unsafe { std::slice::from_raw_parts(record.FileName.as_ptr(), file_name_len) };
         let file_name = OsString::from_wide(file_name_data);
 
+        let utc_time = utils::filetime_to_datetime(record.TimeStamp)
+            .unwrap_or_else(|_| DateTime::from_timestamp(0, 0).unwrap());
+
         UsnEntry {
-            record_length: record.RecordLength,
             usn: record.Usn,
-            timestamp: utils::filetime_to_datetime(record.TimeStamp),
+            utc_time,
             fid: record.FileReferenceNumber,
             parent_fid: record.ParentFileReferenceNumber,
             reason: record.Reason,

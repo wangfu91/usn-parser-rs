@@ -49,6 +49,7 @@ fn main() -> anyhow::Result<()> {
                 only_on_close: true,
                 timeout: 0,
                 wait_for_more: true,
+                ..Default::default()
             };
             let usn_journal =
                 UsnJournal::new_with_options(volume_handle, journal_data.UsnJournalID, options);

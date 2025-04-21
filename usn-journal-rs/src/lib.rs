@@ -27,3 +27,7 @@ pub mod path_resolver;
 pub mod usn_entry;
 pub mod usn_journal;
 pub mod utils;
+
+pub type Usn = i64;
+
+pub(crate) const DEFAULT_BUFFER_SIZE: usize = 64 * 1024; // 64KB

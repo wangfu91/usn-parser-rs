@@ -13,14 +13,12 @@ use windows::Win32::{
     },
 };
 
-use crate::usn_entry::UsnEntry;
-
-type Usn = i64;
+use crate::{usn_entry::UsnEntry, Usn, DEFAULT_BUFFER_SIZE};
 
 pub struct UsnJournal {
     pub volume_handle: HANDLE,
     pub journal_id: u64,
-    buffer: [u8; 64 * 1024],
+    buffer: Vec<u8>,
     bytes_read: u32,
     offset: u32,
     next_start_usn: Usn,
@@ -36,6 +34,20 @@ pub struct UsnJournalEnumOptions {
     pub only_on_close: bool,
     pub timeout: u64,
     pub wait_for_more: bool,
+    pub buffer_size: usize,
+}
+
+impl Default for UsnJournalEnumOptions {
+    fn default() -> Self {
+        UsnJournalEnumOptions {
+            start_usn: 0,
+            reason_mask: 0xFFFFFFFF,
+            only_on_close: false,
+            timeout: 0,
+            wait_for_more: false,
+            buffer_size: DEFAULT_BUFFER_SIZE,
+        }
+    }
 }
 
 impl UsnJournal {
@@ -43,7 +55,7 @@ impl UsnJournal {
         Self {
             volume_handle,
             journal_id,
-            buffer: [0u8; 64 * 1024],
+            buffer: vec![0u8; DEFAULT_BUFFER_SIZE],
             bytes_read: 0,
             offset: 0,
             next_start_usn: 0,
@@ -62,7 +74,7 @@ impl UsnJournal {
         Self {
             volume_handle,
             journal_id,
-            buffer: [0u8; 64 * 1024],
+            buffer: vec![0u8; options.buffer_size],
             bytes_read: 0,
             offset: 0,
             next_start_usn: options.start_usn,
@@ -236,46 +248,46 @@ pub fn delete(volume_handle: HANDLE, journal_id: u64) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use anyhow::Ok;
+
     #[test]
-    fn query_usn_journal_test() {
+    fn query_usn_journal_test() -> anyhow::Result<()> {
         let volume_letter = "E:\\";
-        let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
-        let data = super::query(volume_handle).unwrap();
-        eprintln!("journal data: {:?}", data);
+        let volume_handle = crate::utils::get_volume_handle(volume_letter)?;
+        let _data = super::query(volume_handle)?;
+
+        Ok(())
     }
 
     #[test]
-    fn delete_usn_journal_test() {
+    fn delete_usn_journal_test() -> anyhow::Result<()> {
         let volume_letter = "E:\\";
-        let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
-        let data = super::query(volume_handle).unwrap();
-        super::delete(volume_handle, data.UsnJournalID).unwrap();
+        let volume_handle = crate::utils::get_volume_handle(volume_letter)?;
+        let data = super::query(volume_handle)?;
+        super::delete(volume_handle, data.UsnJournalID)?;
+
+        Ok(())
     }
 
     #[test]
-    fn create_usn_journal_test() {
+    fn create_usn_journal_test() -> anyhow::Result<()> {
         let volume_letter = "E:\\";
-        let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
-        super::create_or_update(volume_handle, 1024 * 1024 * 1024, 1024 * 1024).unwrap();
+        let volume_handle = crate::utils::get_volume_handle(volume_letter)?;
+        super::create_or_update(volume_handle, 1024 * 1024 * 1024, 1024 * 1024)?;
+
+        Ok(())
     }
 
     #[test]
-    fn usn_journal_iter_test() {
+    fn usn_journal_iter_test() -> anyhow::Result<()> {
         let volume_letter = "E:\\";
-        let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
-        let journal_data = super::query(volume_handle).unwrap();
-        let option = super::UsnJournalEnumOptions {
-            start_usn: 0,
-            reason_mask: 0xFFFFFFFF,
-            only_on_close: false,
-            timeout: 0,
-            wait_for_more: false,
-        };
+        let volume_handle = crate::utils::get_volume_handle(volume_letter)?;
+        let journal_data = super::query(volume_handle)?;
+        let option = super::UsnJournalEnumOptions::default();
         let usn_journal =
             super::UsnJournal::new_with_options(volume_handle, journal_data.UsnJournalID, option);
         let mut previous_usn = -1i64;
         for entry in usn_journal {
-            println!("USN entry: {:?}", entry);
             // Check if the USN entry is valid
             assert!(entry.usn >= 0, "USN is not valid");
             assert!(entry.usn > previous_usn, "USN entries are not in order");
@@ -284,9 +296,11 @@ mod tests {
             assert!(entry.parent_fid > 0, "Parent File ID is not valid");
             assert!(entry.reason > 0, "Reason is not valid");
             assert!(entry.file_attributes.0 > 0, "File attributes are not valid");
-            assert!(entry.timestamp.timestamp() > 0, "Timestamp is not valid");
+            assert!(entry.utc_time.timestamp() > 0, "Timestamp is not valid");
 
             previous_usn = entry.usn;
         }
+
+        Ok(())
     }
 }

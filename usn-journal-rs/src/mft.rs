@@ -6,13 +6,11 @@ use windows::Win32::{
     },
 };
 
-use crate::usn_entry::UsnEntry;
-
-type Usn = i64;
+use crate::{usn_entry::UsnEntry, Usn, DEFAULT_BUFFER_SIZE};
 
 pub struct Mft {
     volume_handle: HANDLE,
-    buffer: [u8; 64 * 1024],
+    buffer: Vec<u8>,
     bytes_read: u32,
     offset: u32,
     next_start_fid: u64,
@@ -23,13 +21,24 @@ pub struct Mft {
 pub struct MftEnumOptions {
     pub low_usn: Usn,
     pub high_usn: Usn,
+    pub buffer_size: usize,
+}
+
+impl Default for MftEnumOptions {
+    fn default() -> Self {
+        MftEnumOptions {
+            low_usn: 0,
+            high_usn: i64::MAX,
+            buffer_size: DEFAULT_BUFFER_SIZE,
+        }
+    }
 }
 
 impl Mft {
     pub fn new(volume_handle: HANDLE) -> Self {
         Mft {
             volume_handle,
-            buffer: [0u8; 64 * 1024],
+            buffer: vec![0u8; DEFAULT_BUFFER_SIZE],
             bytes_read: 0,
             offset: 0,
             next_start_fid: 0,
@@ -41,7 +50,7 @@ impl Mft {
     pub fn new_with_options(volume_handle: HANDLE, options: MftEnumOptions) -> Self {
         Mft {
             volume_handle,
-            buffer: [0u8; 64 * 1024],
+            buffer: vec![0u8; options.buffer_size],
             bytes_read: 0,
             offset: 0,
             next_start_fid: options.low_usn as u64,
@@ -130,9 +139,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn mft_iter_test() {
+    fn mft_iter_test() -> anyhow::Result<()> {
         let volume_letter = "E:\\";
-        let volume_handle = crate::utils::get_volume_handle(volume_letter).unwrap();
+        let volume_handle = crate::utils::get_volume_handle(volume_letter)?;
         let mft = Mft::new(volume_handle);
         for entry in mft {
             println!("MFT entry: {:?}", entry);
@@ -144,5 +153,7 @@ mod tests {
             assert!(entry.reason == 0, "Reason is not valid");
             assert!(entry.file_attributes.0 > 0, "File attributes are not valid");
         }
+
+        Ok(())
     }
 }
