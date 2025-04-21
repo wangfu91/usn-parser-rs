@@ -335,7 +335,6 @@ name = "usn-journal-rs"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "chrono",
  "log",
  "lru",
  "windows",

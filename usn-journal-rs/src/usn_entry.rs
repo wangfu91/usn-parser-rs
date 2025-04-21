@@ -1,4 +1,4 @@
-use std::{ffi::OsString, os::windows::ffi::OsStringExt};
+use std::{ffi::OsString, os::windows::ffi::OsStringExt, time::SystemTime};
 
 use windows::Win32::{
     Storage::FileSystem::{
@@ -7,14 +7,12 @@ use windows::Win32::{
     System::Ioctl::USN_RECORD_V2,
 };
 
-use chrono::{DateTime, FixedOffset, TimeZone, Utc};
-
 use crate::utils;
 
 #[derive(Debug)]
 pub struct UsnEntry {
     pub usn: i64,
-    pub utc_time: DateTime<Utc>,
+    pub time: SystemTime,
     pub fid: u64,
     pub parent_fid: u64,
     pub reason: u32,
@@ -37,12 +35,11 @@ impl UsnEntry {
             unsafe { std::slice::from_raw_parts(record.FileName.as_ptr(), file_name_len) };
         let file_name = OsString::from_wide(file_name_data);
 
-        let utc_time = utils::filetime_to_datetime(record.TimeStamp)
-            .unwrap_or_else(|_| DateTime::from_timestamp(0, 0).unwrap());
-
+        let sys_time =
+            utils::filetime_to_systemtime(record.TimeStamp).unwrap_or(SystemTime::UNIX_EPOCH);
         UsnEntry {
             usn: record.Usn,
-            utc_time,
+            time: sys_time,
             fid: record.FileReferenceNumber,
             parent_fid: record.ParentFileReferenceNumber,
             reason: record.Reason,
