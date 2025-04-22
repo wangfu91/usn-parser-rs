@@ -250,11 +250,14 @@ pub fn delete(volume_handle: HANDLE, journal_id: u64) -> anyhow::Result<()> {
 mod tests {
     use anyhow::Ok;
 
+    use crate::utils;
+
     #[test]
     fn query_usn_journal_test() -> anyhow::Result<()> {
-        let volume_letter = "E:\\";
-        let volume_handle = crate::utils::get_volume_handle(volume_letter)?;
-        let _data = super::query(volume_handle)?;
+        let mount_point = r"C:\temp\vhd-mount-point";
+        let volume_handle = utils::get_volume_handle_from_mount_point(mount_point)?;
+        let journal_data = super::query(volume_handle)?;
+        println!("USN journal data: {:?}", journal_data);
 
         Ok(())
     }
@@ -262,7 +265,7 @@ mod tests {
     #[test]
     fn delete_usn_journal_test() -> anyhow::Result<()> {
         let volume_letter = "E:\\";
-        let volume_handle = crate::utils::get_volume_handle(volume_letter)?;
+        let volume_handle = utils::get_volume_handle(volume_letter)?;
         let data = super::query(volume_handle)?;
         super::delete(volume_handle, data.UsnJournalID)?;
 
@@ -272,7 +275,7 @@ mod tests {
     #[test]
     fn create_usn_journal_test() -> anyhow::Result<()> {
         let volume_letter = "E:\\";
-        let volume_handle = crate::utils::get_volume_handle(volume_letter)?;
+        let volume_handle = utils::get_volume_handle(volume_letter)?;
         super::create_or_update(volume_handle, 1024 * 1024 * 1024, 1024 * 1024)?;
 
         Ok(())
@@ -281,7 +284,7 @@ mod tests {
     #[test]
     fn usn_journal_iter_test() -> anyhow::Result<()> {
         let volume_letter = "E:\\";
-        let volume_handle = crate::utils::get_volume_handle(volume_letter)?;
+        let volume_handle = utils::get_volume_handle(volume_letter)?;
         let journal_data = super::query(volume_handle)?;
         let option = super::UsnJournalEnumOptions::default();
         let usn_journal =

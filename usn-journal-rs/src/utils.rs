@@ -11,8 +11,9 @@ use windows::{
     Win32::{
         Foundation::{self, HANDLE},
         Storage::FileSystem::{
-            self, CreateFileW, FILE_FLAGS_AND_ATTRIBUTES, FILE_GENERIC_READ, FILE_ID_DESCRIPTOR,
-            FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+            self, CreateFileW, GetVolumeNameForVolumeMountPointW, FILE_FLAGS_AND_ATTRIBUTES,
+            FILE_GENERIC_READ, FILE_ID_DESCRIPTOR, FILE_SHARE_READ, FILE_SHARE_WRITE,
+            OPEN_EXISTING,
         },
     },
 };
@@ -34,6 +35,59 @@ pub fn get_volume_handle(volume: &str) -> anyhow::Result<HANDLE> {
             format!(
                 "CreateFileW failed, volume_root={}, error={:?}",
                 volume_root,
+                Foundation::GetLastError()
+            )
+        })?
+    };
+
+    Ok(volume_handle)
+}
+
+pub fn get_volume_handle_from_mount_point(mount_point: &str) -> anyhow::Result<HANDLE> {
+    let mount_path = if mount_point.ends_with('\\') {
+        mount_point.to_string()
+    } else {
+        format!("{}\\", mount_point) // GetVolumeNameForVolumeMountPointW requires trailing backslash
+    };
+
+    let mut volume_name = [0u16; 50]; // Enough space for volume GUID path
+    if let Err(err) =
+        unsafe { GetVolumeNameForVolumeMountPointW(&HSTRING::from(&mount_path), &mut volume_name) }
+    {
+        eprintln!(
+            "GetVolumeNameForVolumeMountPointW failed, mount_point={}, error={:?}",
+            mount_path, err
+        );
+        return Err(err.into());
+    }
+
+    // Convert the null-terminated wide string to a Rust string
+    let end = volume_name
+        .iter()
+        .position(|&c| c == 0)
+        .unwrap_or(volume_name.len());
+    let volume_guid = String::from_utf16_lossy(&volume_name[0..end]);
+
+    println!("Volume GUID: {}", volume_guid);
+
+    // IMPORTANT: Remove the trailing backslash for CreateFileW
+    let volume_path = volume_guid.trim_end_matches('\\').to_string();
+    println!("Using volume path: {}", volume_path);
+
+    let volume_handle = unsafe {
+        CreateFileW(
+            &HSTRING::from(&volume_path),
+            FILE_GENERIC_READ.0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            FILE_FLAGS_AND_ATTRIBUTES::default(),
+            None,
+        )
+        .with_context(|| {
+            format!(
+                "CreateFileW failed, volume_path={}, error={:?}",
+                volume_path,
                 Foundation::GetLastError()
             )
         })?
