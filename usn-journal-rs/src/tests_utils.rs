@@ -22,7 +22,7 @@ pub(crate) fn get_workspace_root() -> anyhow::Result<PathBuf> {
 }
 
 pub(crate) fn setup() -> anyhow::Result<(PathBuf, Uuid)> {
-    const SETUP_SCRIPT_NAME: &str = "cargo-test-setup.ps1";
+    const SETUP_SCRIPT_NAME: &str = "test-setup.ps1";
 
     let workspace_root = get_workspace_root()?;
     let script_path = workspace_root.join(SETUP_SCRIPT_NAME);
@@ -84,7 +84,7 @@ pub(crate) fn setup() -> anyhow::Result<(PathBuf, Uuid)> {
 }
 
 pub(crate) fn teardown(uuid: Uuid) -> anyhow::Result<()> {
-    const TEARDOWN_SCRIPT_NAME: &str = "cargo-test-teardown.ps1";
+    const TEARDOWN_SCRIPT_NAME: &str = "test-teardown.ps1";
 
     let workspace_root = get_workspace_root()?;
     let script_path = workspace_root.join(TEARDOWN_SCRIPT_NAME);
