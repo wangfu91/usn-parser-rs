@@ -1,7 +1,8 @@
 use std::{ffi::c_void, mem::size_of};
 
+use anyhow::Context;
 use windows::Win32::{
-    Foundation::{ERROR_HANDLE_EOF, HANDLE},
+    Foundation::{ERROR_HANDLE_EOF, ERROR_JOURNAL_NOT_ACTIVE, HANDLE},
     System::{
         Ioctl::{
             CREATE_USN_JOURNAL_DATA, DELETE_USN_JOURNAL_DATA, FSCTL_CREATE_USN_JOURNAL,
@@ -13,7 +14,10 @@ use windows::Win32::{
     },
 };
 
-use crate::{usn_entry::UsnEntry, Usn, DEFAULT_BUFFER_SIZE};
+use crate::{
+    usn_entry::UsnEntry, Usn, DEFAULT_BUFFER_SIZE, DEFAULT_JOURNAL_ALLOCATION_DELTA,
+    DEFAULT_JOURNAL_MAX_SIZE,
+};
 
 pub struct UsnJournal {
     pub volume_handle: HANDLE,
@@ -164,7 +168,36 @@ impl Iterator for UsnJournal {
     }
 }
 
-pub fn query(volume_handle: HANDLE) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
+pub fn query(
+    volume_handle: HANDLE,
+    create_if_not_active: bool,
+) -> anyhow::Result<USN_JOURNAL_DATA_V0> {
+    match query_core(volume_handle) {
+        Err(err) => {
+            if err.code() == ERROR_JOURNAL_NOT_ACTIVE.into() && create_if_not_active {
+                create_or_update(
+                    volume_handle,
+                    DEFAULT_JOURNAL_MAX_SIZE,
+                    DEFAULT_JOURNAL_ALLOCATION_DELTA,
+                )
+                .context("Failed to create USN journal")?;
+
+                let journal_data =
+                    query_core(volume_handle).context("Failed to query USN journal")?;
+                Ok(journal_data)
+            } else {
+                println!("Error querying USN journal: {}", err);
+                Err(err.into())
+            }
+        }
+        Ok(journal_data) => {
+            println!("USN journal data: {:?}", journal_data);
+            Ok(journal_data)
+        }
+    }
+}
+
+fn query_core(volume_handle: HANDLE) -> Result<USN_JOURNAL_DATA_V0, windows::core::Error> {
     let journal_data = USN_JOURNAL_DATA_V0::default();
     let bytes_return = 0u32;
 
@@ -250,7 +283,7 @@ pub fn delete(volume_handle: HANDLE, journal_id: u64) -> anyhow::Result<()> {
 mod tests {
     use crate::{
         tests_utils::{setup, teardown},
-        utils,
+        utils, DEFAULT_JOURNAL_ALLOCATION_DELTA, DEFAULT_JOURNAL_MAX_SIZE,
     };
     use anyhow::Ok;
 
@@ -261,7 +294,7 @@ mod tests {
 
         let result = {
             let volume_handle = utils::get_volume_handle_from_mount_point(mount_point.as_path())?;
-            let journal_data = super::query(volume_handle)?;
+            let journal_data = super::query(volume_handle, true)?;
             println!("USN journal data: {:?}", journal_data);
 
             Ok(())
@@ -281,7 +314,7 @@ mod tests {
 
         let result = {
             let volume_handle = utils::get_volume_handle_from_mount_point(mount_point.as_path())?;
-            let journal_data = super::query(volume_handle)?;
+            let journal_data = super::query(volume_handle, true)?;
             println!("USN journal data: {:?}", journal_data);
             super::delete(volume_handle, journal_data.UsnJournalID)?;
 
@@ -302,9 +335,13 @@ mod tests {
 
         let result = {
             let volume_handle = utils::get_volume_handle_from_mount_point(mount_point.as_path())?;
-            let journal_data = super::query(volume_handle)?;
+            let journal_data = super::query(volume_handle, true)?;
             println!("USN journal data: {:?}", journal_data);
-            super::create_or_update(volume_handle, 1024 * 1024 * 1024, 1024 * 1024)?;
+            super::create_or_update(
+                volume_handle,
+                DEFAULT_JOURNAL_MAX_SIZE,
+                DEFAULT_JOURNAL_ALLOCATION_DELTA,
+            )?;
 
             Ok(())
         };
@@ -323,7 +360,7 @@ mod tests {
 
         let result = {
             let volume_handle = utils::get_volume_handle_from_mount_point(mount_point.as_path())?;
-            let journal_data = super::query(volume_handle)?;
+            let journal_data = super::query(volume_handle, true)?;
             println!("USN journal data: {:?}", journal_data);
             let option = super::UsnJournalEnumOptions::default();
             let usn_journal = super::UsnJournal::new_with_options(
