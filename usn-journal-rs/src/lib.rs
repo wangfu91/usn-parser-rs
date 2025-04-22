@@ -24,6 +24,7 @@
 
 pub mod mft;
 pub mod path_resolver;
+mod tests_utils;
 pub mod usn_entry;
 pub mod usn_journal;
 pub mod utils;

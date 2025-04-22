@@ -1,7 +1,7 @@
 use std::{
     ffi::{c_void, OsString},
     os::windows::ffi::OsStringExt,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
@@ -43,12 +43,9 @@ pub fn get_volume_handle(volume: &str) -> anyhow::Result<HANDLE> {
     Ok(volume_handle)
 }
 
-pub fn get_volume_handle_from_mount_point(mount_point: &str) -> anyhow::Result<HANDLE> {
-    let mount_path = if mount_point.ends_with('\\') {
-        mount_point.to_string()
-    } else {
-        format!("{}\\", mount_point) // GetVolumeNameForVolumeMountPointW requires trailing backslash
-    };
+pub fn get_volume_handle_from_mount_point(mount_point: &Path) -> anyhow::Result<HANDLE> {
+    // GetVolumeNameForVolumeMountPointW requires trailing backslash
+    let mount_path = format!("{}\\", mount_point.to_string_lossy());
 
     let mut volume_name = [0u16; 50]; // Enough space for volume GUID path
     if let Err(err) =
@@ -66,7 +63,10 @@ pub fn get_volume_handle_from_mount_point(mount_point: &str) -> anyhow::Result<H
         .iter()
         .position(|&c| c == 0)
         .unwrap_or(volume_name.len());
-    let volume_guid = String::from_utf16_lossy(&volume_name[0..end]);
+    let name_data = volume_name
+        .get(..end)
+        .context("Failed to get volume name data")?;
+    let volume_guid = String::from_utf16_lossy(name_data);
 
     println!("Volume GUID: {}", volume_guid);
 
@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn filetime_to_systemtime_test() -> anyhow::Result<()> {
         // Test with the Unix Epoch (January 1, 1970 00:00:00 UTC)
-        let unix_epoch_filetime: i64 = 11_644_473_600_000_0000;
+        let unix_epoch_filetime: i64 = 116_444_736_000_000_000;
         let unix_epoch_systemtime = filetime_to_systemtime(unix_epoch_filetime)?;
         assert_eq!(unix_epoch_systemtime, UNIX_EPOCH);
 

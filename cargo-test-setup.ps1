@@ -1,8 +1,5 @@
-# Set-PSDebug -Trace 2
-
 # This script creates a VHD file, mounts it, initializes the disk, creates a partition, formats it with NTFS, and assigns a mount point.
 # It requires administrator privileges to run.
-# Usage: .\tests-vhd-init.ps1 -VhdPath "C:\path\to\your.vhdx" -MountPath "C:\mount\point"
 # Note: This script needs the Hypwer-V feature to be enabled on the system.
 
 param(
@@ -13,10 +10,19 @@ param(
     [string]$MountPath
 )
 
+# Set error action preference to stop on errors
+$ErrorActionPreference = "Stop"
+
 # Ensure the script is running with administrator privileges
 if (-NOT ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
     Write-Error "This script requires administrator privileges. Please run as Administrator."
     exit 1
+}
+
+$disk = Get-Disk | Where-Object { $_.Location -eq $VhdPath }
+if ($disk) {
+    Write-Host "VHD already mounted at $MountPath, skipping..."
+    exit 0
 }
 
 # Create directory for VHD if it doesn't exist
@@ -30,7 +36,7 @@ if (-not (Test-Path -Path $MountPath)) {
     New-Item -Path $MountPath -ItemType Directory -Force | Out-Null
 }
 
-# Check if $MountPath is an empty directory, fail if not'
+# Check if $MountPath is an empty directory, fail if not
 if (Test-Path -Path $MountPath) {
     $files = Get-ChildItem -Path $MountPath
     if ($files.Count -gt 0) {
@@ -40,9 +46,9 @@ if (Test-Path -Path $MountPath) {
 }
 
 try {
-    # Create the VHD file (1GB in size)
+    # Create the VHD file (256MB in size)
     Write-Host "Creating VHD file at $VhdPath..."
-    $vhd = New-VHD -Path $VhdPath -SizeBytes 1GB -Dynamic -Confirm:$false
+    New-VHD -Path $VhdPath -SizeBytes 256MB -Dynamic -Confirm:$false
     
     # Mount the VHD
     Write-Host "Mounting VHD..."
@@ -63,6 +69,15 @@ try {
     Add-PartitionAccessPath -DiskNumber $disk.Number -PartitionNumber $partition.PartitionNumber -AccessPath $MountPath
     
     Write-Host "VHD successfully created and mounted to $MountPath"
+
+    # Create some random files/folder in the mount path for testing
+    Write-Host "Creating test files in $MountPath..."
+    New-Item -Path "$MountPath\TestFile1.txt" -ItemType File -Force | Out-Null
+    New-Item -Path "$MountPath\TestFile2.txt" -ItemType File -Force | Out-Null
+    New-Item -Path "$MountPath\TestFolder" -ItemType Directory -Force | Out-Null
+    New-Item -Path "$MountPath\TestFolder\TestFile3.txt" -ItemType File -Force | Out-Null
+    New-Item -Path "$MountPath\TestFolder\TestFile4.txt" -ItemType File -Force | Out-Null
+    Write-Host "Test files created."
 }
 catch {
     Write-Error "An error occurred: $_"

@@ -12,6 +12,7 @@ categories = ["filesystem", "os::windows-apis"] # Optional: Add relevant categor
 anyhow = "1.0"
 log = "0.4"
 lru = "0.14"
+uuid = { version = "1.0", features = ["v4"] } 
 
 [dependencies.windows]
 version = "0.61"

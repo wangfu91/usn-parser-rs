@@ -248,62 +248,112 @@ pub fn delete(volume_handle: HANDLE, journal_id: u64) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{
+        tests_utils::{setup, teardown},
+        utils,
+    };
     use anyhow::Ok;
-
-    use crate::utils;
 
     #[test]
     fn query_usn_journal_test() -> anyhow::Result<()> {
-        let mount_point = r"C:\temp\vhd-mount-point";
-        let volume_handle = utils::get_volume_handle_from_mount_point(mount_point)?;
-        let journal_data = super::query(volume_handle)?;
-        println!("USN journal data: {:?}", journal_data);
+        // Setup the test environment
+        let (mount_point, uuid) = setup()?;
 
-        Ok(())
+        let result = {
+            let volume_handle = utils::get_volume_handle_from_mount_point(mount_point.as_path())?;
+            let journal_data = super::query(volume_handle)?;
+            println!("USN journal data: {:?}", journal_data);
+
+            Ok(())
+        };
+
+        // Teardown the test environment
+        teardown(uuid)?;
+
+        // Return the result of the test
+        result
     }
 
     #[test]
     fn delete_usn_journal_test() -> anyhow::Result<()> {
-        let volume_letter = "E:\\";
-        let volume_handle = utils::get_volume_handle(volume_letter)?;
-        let data = super::query(volume_handle)?;
-        super::delete(volume_handle, data.UsnJournalID)?;
+        // Setup the test environment
+        let (mount_point, uuid) = setup()?;
 
-        Ok(())
+        let result = {
+            let volume_handle = utils::get_volume_handle_from_mount_point(mount_point.as_path())?;
+            let journal_data = super::query(volume_handle)?;
+            println!("USN journal data: {:?}", journal_data);
+            super::delete(volume_handle, journal_data.UsnJournalID)?;
+
+            Ok(())
+        };
+
+        // Teardown the test environment
+        teardown(uuid)?;
+
+        // Return the result of the test
+        result
     }
 
     #[test]
     fn create_usn_journal_test() -> anyhow::Result<()> {
-        let volume_letter = "E:\\";
-        let volume_handle = utils::get_volume_handle(volume_letter)?;
-        super::create_or_update(volume_handle, 1024 * 1024 * 1024, 1024 * 1024)?;
+        // Setup the test environment
+        let (mount_point, uuid) = setup()?;
 
-        Ok(())
+        let result = {
+            let volume_handle = utils::get_volume_handle_from_mount_point(mount_point.as_path())?;
+            let journal_data = super::query(volume_handle)?;
+            println!("USN journal data: {:?}", journal_data);
+            super::create_or_update(volume_handle, 1024 * 1024 * 1024, 1024 * 1024)?;
+
+            Ok(())
+        };
+
+        // Teardown the test environment
+        teardown(uuid)?;
+
+        // Return the result of the test
+        result
     }
 
     #[test]
     fn usn_journal_iter_test() -> anyhow::Result<()> {
-        let volume_letter = "E:\\";
-        let volume_handle = utils::get_volume_handle(volume_letter)?;
-        let journal_data = super::query(volume_handle)?;
-        let option = super::UsnJournalEnumOptions::default();
-        let usn_journal =
-            super::UsnJournal::new_with_options(volume_handle, journal_data.UsnJournalID, option);
-        let mut previous_usn = -1i64;
-        for entry in usn_journal {
-            // Check if the USN entry is valid
-            assert!(entry.usn >= 0, "USN is not valid");
-            assert!(entry.usn > previous_usn, "USN entries are not in order");
-            assert!(entry.fid > 0, "File ID is not valid");
-            assert!(!entry.file_name.is_empty(), "File name is not valid");
-            assert!(entry.parent_fid > 0, "Parent File ID is not valid");
-            assert!(entry.reason > 0, "Reason is not valid");
-            assert!(entry.file_attributes.0 > 0, "File attributes are not valid");
-            assert!(entry.time > std::time::UNIX_EPOCH, "Time is not valid");
+        // Setup the test environment
+        let (mount_point, uuid) = setup()?;
 
-            previous_usn = entry.usn;
-        }
+        let result = {
+            let volume_handle = utils::get_volume_handle_from_mount_point(mount_point.as_path())?;
+            let journal_data = super::query(volume_handle)?;
+            println!("USN journal data: {:?}", journal_data);
+            let option = super::UsnJournalEnumOptions::default();
+            let usn_journal = super::UsnJournal::new_with_options(
+                volume_handle,
+                journal_data.UsnJournalID,
+                option,
+            );
+            let mut previous_usn = -1i64;
+            for entry in usn_journal {
+                println!("USN entry: {:?}", entry);
+                // Check if the USN entry is valid
+                assert!(entry.usn >= 0, "USN is not valid");
+                assert!(entry.usn > previous_usn, "USN entries are not in order");
+                assert!(entry.fid > 0, "File ID is not valid");
+                assert!(!entry.file_name.is_empty(), "File name is not valid");
+                assert!(entry.parent_fid > 0, "Parent File ID is not valid");
+                assert!(entry.reason > 0, "Reason is not valid");
+                assert!(entry.file_attributes.0 > 0, "File attributes are not valid");
+                assert!(entry.time > std::time::UNIX_EPOCH, "Time is not valid");
 
-        Ok(())
+                previous_usn = entry.usn;
+            }
+
+            Ok(())
+        };
+
+        // Teardown the test environment
+        teardown(uuid)?;
+
+        // Return the result of the test
+        result
     }
 }
