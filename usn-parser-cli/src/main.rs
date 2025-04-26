@@ -3,7 +3,7 @@ use usn_journal_rs::{
     mft::Mft,
     path_resolver::PathResolver,
     usn_journal::{self, UsnJournal, UsnJournalEnumOptions},
-    utils,
+    utils, USN_REASON_MASK_ALL,
 };
 
 #[derive(Parser, Debug)]
@@ -45,7 +45,7 @@ fn main() -> anyhow::Result<()> {
         Commands::Monitor {} => {
             let options = UsnJournalEnumOptions {
                 start_usn: journal_data.NextUsn,
-                reason_mask: 0xFFFFFFFF,
+                reason_mask: USN_REASON_MASK_ALL,
                 only_on_close: true,
                 timeout: 0,
                 wait_for_more: true,

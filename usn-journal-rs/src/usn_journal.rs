@@ -16,9 +16,10 @@ use windows::Win32::{
 
 use crate::{
     usn_entry::UsnEntry, Usn, DEFAULT_BUFFER_SIZE, DEFAULT_JOURNAL_ALLOCATION_DELTA,
-    DEFAULT_JOURNAL_MAX_SIZE,
+    DEFAULT_JOURNAL_MAX_SIZE, USN_REASON_MASK_ALL,
 };
 
+#[derive(Debug, Clone)]
 pub struct UsnJournal {
     pub volume_handle: HANDLE,
     pub journal_id: u64,
@@ -32,6 +33,7 @@ pub struct UsnJournal {
     bytes_to_wait_for: u64,
 }
 
+#[derive(Debug, Clone)]
 pub struct UsnJournalEnumOptions {
     pub start_usn: Usn,
     pub reason_mask: u32,
@@ -45,7 +47,7 @@ impl Default for UsnJournalEnumOptions {
     fn default() -> Self {
         UsnJournalEnumOptions {
             start_usn: 0,
-            reason_mask: 0xFFFFFFFF,
+            reason_mask: USN_REASON_MASK_ALL,
             only_on_close: false,
             timeout: 0,
             wait_for_more: false,
@@ -63,7 +65,7 @@ impl UsnJournal {
             bytes_read: 0,
             offset: 0,
             next_start_usn: 0,
-            reason_mask: 0xFFFFFFFF,
+            reason_mask: USN_REASON_MASK_ALL,
             return_only_on_close: 0,
             timeout: 0,
             bytes_to_wait_for: 1,
