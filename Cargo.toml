@@ -1,6 +1,5 @@
 [workspace]
 members = [
-    "usn-journal-rs",
     "usn-parser-cli",
 ]
 

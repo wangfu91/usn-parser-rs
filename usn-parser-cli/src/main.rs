@@ -1,8 +1,8 @@
 use clap::{Parser, Subcommand};
 use usn_journal_rs::{
-    mft::Mft,
-    path_resolver::PathResolver,
-    usn_journal::{self, UsnJournal, UsnJournalEnumOptions},
+    mft::{self, Mft},
+    path_resolver::{MftPathResolver, UsnJournalPathResolver},
+    usn_journal::{self, UsnJournal},
     utils, USN_REASON_MASK_ALL,
 };
 
@@ -13,7 +13,7 @@ use usn_journal_rs::{
     long_about = "A command utility for NTFS to search the MFT & monitoring the changes of USN Journal."
 )]
 struct Cli {
-    volume: String,
+    volume: char,
 
     #[command(subcommand)]
     command: Commands,
@@ -29,21 +29,17 @@ enum Commands {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
-    let volume = cli.volume;
+    let drive_letter = cli.volume;
 
-    let volume_handle = utils::get_volume_handle(&volume)?;
-
-    println!("volume handle = {:?}", volume_handle);
+    let volume_handle = utils::get_volume_handle(drive_letter)?;
 
     let journal_data = usn_journal::query(volume_handle, true)?;
 
     println!("Journal data: {:#?}", journal_data);
 
-    let mut path_resolver = PathResolver::new(volume_handle, volume.chars().next().unwrap());
-
     match cli.command {
         Commands::Monitor {} => {
-            let options = UsnJournalEnumOptions {
+            let options = usn_journal::EnumOptions {
                 start_usn: journal_data.NextUsn,
                 reason_mask: USN_REASON_MASK_ALL,
                 only_on_close: true,
@@ -51,11 +47,10 @@ fn main() -> anyhow::Result<()> {
                 wait_for_more: true,
                 ..Default::default()
             };
-            let usn_journal =
-                UsnJournal::new_with_options(volume_handle, journal_data.UsnJournalID, options);
-            for entry in usn_journal {
-                let full_path =
-                    path_resolver.resolve_path(entry.fid, entry.parent_fid, &entry.file_name);
+            let usn_journal = UsnJournal::new_from_drive_letter(drive_letter)?;
+            let mut path_resolver = UsnJournalPathResolver::new(&usn_journal);
+            for entry in usn_journal.iter_with_options(options) {
+                let full_path = path_resolver.resolve_path(&entry);
                 println!(
                     "usn={:?}, file_id={:?}, path={:?}",
                     entry.usn, entry.fid, full_path
@@ -64,10 +59,15 @@ fn main() -> anyhow::Result<()> {
         }
 
         Commands::Mft {} => {
-            let mft = Mft::new(volume_handle);
-            for entry in mft {
-                let full_path =
-                    path_resolver.resolve_path(entry.fid, entry.parent_fid, &entry.file_name);
+            let options = mft::EnumOptions {
+                low_usn: 0,
+                high_usn: i64::MAX,
+                ..Default::default()
+            };
+            let mft = Mft::new_from_drive_letter(drive_letter)?;
+            let mut path_resolver = MftPathResolver::new(&mft);
+            for entry in mft.iter_with_options(options) {
+                let full_path = path_resolver.resolve_path(&entry);
                 println!("fid={:?}, path={:?}", entry.fid, full_path);
             }
         }
