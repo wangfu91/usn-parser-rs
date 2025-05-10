@@ -1,9 +1,10 @@
 use clap::{Parser, Subcommand};
 use usn_journal_rs::{
+    USN_REASON_MASK_ALL,
     mft::{self, Mft},
     path_resolver::{MftPathResolver, UsnJournalPathResolver},
     usn_journal::{self, UsnJournal},
-    utils, USN_REASON_MASK_ALL,
+    utils,
 };
 
 #[derive(Parser, Debug)]

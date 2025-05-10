@@ -356,9 +356,7 @@ checksum = "5a5f39404a5da50712a4c1eecf25e90dd62b613502b7e925fd4e4d19b5c96512"
 
 [[package]]
 name = "usn-journal-rs"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e33e6d290a51b2bb77fd27024f6e1b2716915e5ecb0655a363b3fe468ff4de49"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "log",
