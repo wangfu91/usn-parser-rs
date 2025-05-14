@@ -1,10 +1,10 @@
 use clap::{Parser, Subcommand};
 use usn_journal_rs::{
     USN_REASON_MASK_ALL,
+    journal::{self, UsnJournal},
     mft::{self, Mft},
-    path_resolver::{MftPathResolver, UsnJournalPathResolver},
-    usn_journal::{self, UsnJournal},
-    utils,
+    path::{JournalPathResolver, MftPathResolver},
+    volume::Volume,
 };
 
 #[derive(Parser, Debug)]
@@ -31,16 +31,15 @@ fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
     let drive_letter = cli.volume;
+    let volume = Volume::from_drive_letter(drive_letter)?;
 
-    let volume_handle = utils::get_volume_handle(drive_letter)?;
-
-    let journal_data = usn_journal::query(volume_handle, true)?;
+    let journal_data = journal::query(&volume, true)?;
 
     println!("Journal data: {:#?}", journal_data);
 
     match cli.command {
         Commands::Monitor {} => {
-            let options = usn_journal::EnumOptions {
+            let options = journal::EnumOptions {
                 start_usn: journal_data.NextUsn,
                 reason_mask: USN_REASON_MASK_ALL,
                 only_on_close: true,
@@ -48,8 +47,8 @@ fn main() -> anyhow::Result<()> {
                 wait_for_more: true,
                 ..Default::default()
             };
-            let usn_journal = UsnJournal::new_from_drive_letter(drive_letter)?;
-            let mut path_resolver = UsnJournalPathResolver::new(&usn_journal);
+            let usn_journal = UsnJournal::new(volume)?;
+            let mut path_resolver = JournalPathResolver::new(&usn_journal);
             for entry in usn_journal.iter_with_options(options) {
                 let full_path = path_resolver.resolve_path(&entry);
                 println!(
@@ -65,7 +64,7 @@ fn main() -> anyhow::Result<()> {
                 high_usn: i64::MAX,
                 ..Default::default()
             };
-            let mft = Mft::new_from_drive_letter(drive_letter)?;
+            let mft = Mft::new(volume)?;
             let mut path_resolver = MftPathResolver::new(&mft);
             for entry in mft.iter_with_options(options) {
                 let full_path = path_resolver.resolve_path(&entry);
