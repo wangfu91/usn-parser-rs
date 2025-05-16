@@ -7,7 +7,7 @@ description = "A Windows utility for NTFS/ReFS to search the MFT & monitoring th
 repository = "https://github.com/wangfu91/usn-parser-rs"
 license = "MIT"
 keywords = ["windows", "ntfs", "mft", "usn", "journal"]
-categories = ["development-tools", "filesystem", "Windows", "ntfs", "usn-journal"]
+categories = ["development-tools", "filesystem"]
 readme = "README.md"
 
 [dependencies]

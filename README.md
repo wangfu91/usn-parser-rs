@@ -2,7 +2,7 @@
 
 A command-line utility 💻 for parsing NTFS/ReFS USN Change Journal and searching the NTFS MFT on Windows systems.
 
-[![Rust](https://img.shields.io/badge/rust-stable-blue.svg)](https://www.rust-lang.org/)
+[![Crates.io](https://img.shields.io/crates/v/usn-parser.svg)](https://crates.io/crates/usn-parser)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ## ✨ Features
