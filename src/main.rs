@@ -11,107 +11,11 @@ use usn_journal_rs::{
 };
 use wax::{Glob, Pattern};
 
-// Helper to format FileId
-fn format_fid(fid: u64) -> String {
-    format!("0x{:x}", fid)
-}
-
-// Helper to format Timestamp
-fn format_timestamp(timestamp: SystemTime) -> String {
-    // Convert SystemTime directly to DateTime<Local>
-    let dt_local: DateTime<Local> = DateTime::from(timestamp);
-
-    // Format the local DateTime
-    dt_local.format("%Y-%m-%d %H:%M:%S").to_string()
-}
-
-fn print_usn_entry(entry: &UsnEntry, full_path_opt: &Option<std::path::PathBuf>) {
-    let path_str = full_path_opt
-        .as_ref()
-        .map(|p| p.to_string_lossy().into_owned());
-    println!(); // Blank line for separation
-    println!("{:<20}: {}", "USN", entry.usn);
-    println!(
-        "{:<20}: {}",
-        "Type",
-        if entry.is_dir() { "Directory" } else { "File" }
-    );
-    if let Some(p_str) = path_str {
-        println!("{:<20}: {}", "Path", p_str);
-    } else {
-        println!("{:<20}: {}", "Path", entry.file_name.to_string_lossy());
-    }
-    println!("{:<20}: {}", "File ID", format_fid(entry.fid));
-    println!("{:<20}: {}", "Parent File ID", format_fid(entry.parent_fid));
-    println!("{:<20}: {}", "Timestamp", format_timestamp(entry.time));
-}
-
-fn print_mft_entry(entry: &MftEntry, full_path_opt: &Option<std::path::PathBuf>) {
-    let path_str = full_path_opt
-        .as_ref()
-        .map(|p| p.to_string_lossy().into_owned());
-    println!(); // Blank line for separation
-    println!(
-        "{:<20}: {}",
-        "Type",
-        if entry.is_dir() { "Directory" } else { "File" }
-    );
-    if let Some(p_str) = path_str {
-        println!("{:<20}: {}", "Path", p_str);
-    } else {
-        println!("{:<20}: {}", "Path", entry.file_name.to_string_lossy());
-    }
-    println!("{:<20}: {}", "File ID", format_fid(entry.fid));
-    println!("{:<20}: {}", "Parent File ID", format_fid(entry.parent_fid));
-}
-
-trait FilterableEntry {
-    fn is_dir(&self) -> bool;
-    fn file_name_os_str(&self) -> &std::ffi::OsStr;
-}
-
-impl FilterableEntry for UsnEntry {
-    fn is_dir(&self) -> bool {
-        self.is_dir()
-    }
-    fn file_name_os_str(&self) -> &std::ffi::OsStr {
-        self.file_name.as_os_str()
-    }
-}
-
-impl FilterableEntry for MftEntry {
-    fn is_dir(&self) -> bool {
-        self.is_dir()
-    }
-    fn file_name_os_str(&self) -> &std::ffi::OsStr {
-        self.file_name.as_os_str()
-    }
-}
-
-fn should_skip_entry<T: FilterableEntry>(
-    entry: &T,
-    args: &FilterOptions,
-    glob: &Option<Glob>,
-) -> bool {
-    if args.file_only && entry.is_dir() {
-        return true;
-    }
-    if args.directory_only && !entry.is_dir() {
-        return true;
-    }
-    if let Some(g) = glob {
-        if !g.is_match(entry.file_name_os_str()) {
-            return true;
-        }
-    }
-    false
-}
-
 #[derive(Parser, Debug)]
 #[command(name = "usn-parser")]
 #[command(
     version,
-    about = "NTFS USN Journal parser",
+    about = "NTFS/ReFS USN Journal parser",
     long_about = "A command utility for NTFS to search the MFT & monitoring the changes of USN Journal."
 )]
 struct Cli {
@@ -189,7 +93,7 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 let full_path = path_resolver.resolve_path(&entry);
-                print_usn_entry(&entry, &full_path);
+                entry.pretty_print(&full_path);
             }
         }
 
@@ -211,7 +115,7 @@ fn main() -> anyhow::Result<()> {
                     continue;
                 }
                 let full_path = path_resolver.resolve_path(&entry);
-                print_mft_entry(&entry, &full_path);
+                entry.pretty_print(&full_path);
             }
         }
         Commands::Read(args) => {
@@ -231,10 +135,108 @@ fn main() -> anyhow::Result<()> {
                     continue;
                 }
                 let full_path = path_resolver.resolve_path(&entry);
-                print_usn_entry(&entry, &full_path);
+                entry.pretty_print(&full_path);
             }
         }
     }
 
     Ok(())
+}
+
+trait FilterableEntry {
+    fn is_dir(&self) -> bool;
+    fn file_name_os_str(&self) -> &std::ffi::OsStr;
+}
+
+impl FilterableEntry for UsnEntry {
+    fn is_dir(&self) -> bool {
+        self.is_dir()
+    }
+    fn file_name_os_str(&self) -> &std::ffi::OsStr {
+        self.file_name.as_os_str()
+    }
+}
+
+impl FilterableEntry for MftEntry {
+    fn is_dir(&self) -> bool {
+        self.is_dir()
+    }
+    fn file_name_os_str(&self) -> &std::ffi::OsStr {
+        self.file_name.as_os_str()
+    }
+}
+
+fn should_skip_entry<T: FilterableEntry>(
+    entry: &T,
+    args: &FilterOptions,
+    glob: &Option<Glob>,
+) -> bool {
+    if args.file_only && entry.is_dir() {
+        return true;
+    }
+    if args.directory_only && !entry.is_dir() {
+        return true;
+    }
+    if let Some(g) = glob {
+        if !g.is_match(entry.file_name_os_str()) {
+            return true;
+        }
+    }
+    false
+}
+
+trait PrettyPrint {
+    fn pretty_print(&self, full_path_opt: &Option<std::path::PathBuf>);
+}
+
+impl PrettyPrint for UsnEntry {
+    fn pretty_print(&self, full_path_opt: &Option<std::path::PathBuf>) {
+        println!();
+        println!("{:<20}: {}", "USN", format_usn(self.usn));
+        println!(
+            "{:<20}: {}",
+            "Type",
+            if self.is_dir() { "Directory" } else { "File" }
+        );
+        println!("{:<20}: {}", "File ID", format_fid(self.fid));
+        println!("{:<20}: {}", "Parent File ID", format_fid(self.parent_fid));
+        println!("{:<20}: {}", "Timestamp", format_timestamp(self.time));
+        println!("{:<20}: {}", "Reason", self.reason);
+        if let Some(full_path) = full_path_opt {
+            println!("{:<20}: {}", "Path", full_path.to_string_lossy());
+        } else {
+            println!("{:<20}: {}", "Path", self.file_name.to_string_lossy());
+        }
+    }
+}
+
+impl PrettyPrint for MftEntry {
+    fn pretty_print(&self, full_path_opt: &Option<std::path::PathBuf>) {
+        println!();
+        println!("{:<20}: {}", "File ID", format_fid(self.fid));
+        println!("{:<20}: {}", "Parent File ID", format_fid(self.parent_fid));
+        println!(
+            "{:<20}: {}",
+            "Type",
+            if self.is_dir() { "Directory" } else { "File" }
+        );
+        if let Some(full_path) = full_path_opt {
+            println!("{:<20}: {}", "Path", full_path.to_string_lossy());
+        } else {
+            println!("{:<20}: {}", "Path", self.file_name.to_string_lossy());
+        }
+    }
+}
+
+fn format_usn(usn: i64) -> String {
+    format!("0x{:x}", usn)
+}
+
+fn format_fid(fid: u64) -> String {
+    format!("0x{:x}", fid)
+}
+
+fn format_timestamp(timestamp: SystemTime) -> String {
+    let dt_local: DateTime<Local> = DateTime::from(timestamp);
+    dt_local.format("%Y-%m-%d %H:%M:%S").to_string()
 }
