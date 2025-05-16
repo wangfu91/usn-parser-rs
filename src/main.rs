@@ -1,17 +1,116 @@
+use std::time::SystemTime;
+
+use chrono::{DateTime, Local};
 use clap::{Parser, Subcommand};
 use usn_journal_rs::{
     USN_REASON_MASK_ALL,
-    journal::{self, UsnJournal},
-    mft::{self, Mft},
+    journal::{self, UsnEntry, UsnJournal},
+    mft::{self, Mft, MftEntry},
     path::{JournalPathResolver, MftPathResolver},
     volume::Volume,
 };
 use wax::{Glob, Pattern};
 
+// Helper to format FileId
+fn format_fid(fid: u64) -> String {
+    format!("0x{:x}", fid)
+}
+
+// Helper to format Timestamp
+fn format_timestamp(timestamp: SystemTime) -> String {
+    // Convert SystemTime directly to DateTime<Local>
+    let dt_local: DateTime<Local> = DateTime::from(timestamp);
+
+    // Format the local DateTime
+    dt_local.format("%Y-%m-%d %H:%M:%S").to_string()
+}
+
+fn print_usn_entry(entry: &UsnEntry, full_path_opt: &Option<std::path::PathBuf>) {
+    let path_str = full_path_opt
+        .as_ref()
+        .map(|p| p.to_string_lossy().into_owned());
+    println!(); // Blank line for separation
+    println!("{:<20}: {}", "USN", entry.usn);
+    println!(
+        "{:<20}: {}",
+        "Type",
+        if entry.is_dir() { "Directory" } else { "File" }
+    );
+    if let Some(p_str) = path_str {
+        println!("{:<20}: {}", "Path", p_str);
+    } else {
+        println!("{:<20}: {}", "Path", entry.file_name.to_string_lossy());
+    }
+    println!("{:<20}: {}", "File ID", format_fid(entry.fid));
+    println!("{:<20}: {}", "Parent File ID", format_fid(entry.parent_fid));
+    println!("{:<20}: {}", "Timestamp", format_timestamp(entry.time));
+}
+
+fn print_mft_entry(entry: &MftEntry, full_path_opt: &Option<std::path::PathBuf>) {
+    let path_str = full_path_opt
+        .as_ref()
+        .map(|p| p.to_string_lossy().into_owned());
+    println!(); // Blank line for separation
+    println!(
+        "{:<20}: {}",
+        "Type",
+        if entry.is_dir() { "Directory" } else { "File" }
+    );
+    if let Some(p_str) = path_str {
+        println!("{:<20}: {}", "Path", p_str);
+    } else {
+        println!("{:<20}: {}", "Path", entry.file_name.to_string_lossy());
+    }
+    println!("{:<20}: {}", "File ID", format_fid(entry.fid));
+    println!("{:<20}: {}", "Parent File ID", format_fid(entry.parent_fid));
+}
+
+trait FilterableEntry {
+    fn is_dir(&self) -> bool;
+    fn file_name_os_str(&self) -> &std::ffi::OsStr;
+}
+
+impl FilterableEntry for UsnEntry {
+    fn is_dir(&self) -> bool {
+        self.is_dir()
+    }
+    fn file_name_os_str(&self) -> &std::ffi::OsStr {
+        self.file_name.as_os_str()
+    }
+}
+
+impl FilterableEntry for MftEntry {
+    fn is_dir(&self) -> bool {
+        self.is_dir()
+    }
+    fn file_name_os_str(&self) -> &std::ffi::OsStr {
+        self.file_name.as_os_str()
+    }
+}
+
+fn should_skip_entry<T: FilterableEntry>(
+    entry: &T,
+    args: &FilterOptions,
+    glob: &Option<Glob>,
+) -> bool {
+    if args.file_only && entry.is_dir() {
+        return true;
+    }
+    if args.directory_only && !entry.is_dir() {
+        return true;
+    }
+    if let Some(g) = glob {
+        if !g.is_match(entry.file_name_os_str()) {
+            return true;
+        }
+    }
+    false
+}
+
 #[derive(Parser, Debug)]
 #[command(name = "usn-parser")]
 #[command(
-    version, // Reads version from Cargo.toml
+    version,
     about = "NTFS USN Journal parser",
     long_about = "A command utility for NTFS to search the MFT & monitoring the changes of USN Journal."
 )]
@@ -79,29 +178,18 @@ fn main() -> anyhow::Result<()> {
                 ..Default::default()
             };
             let mut path_resolver = JournalPathResolver::new(&usn_journal);
-            let glob = if let Some(ref filter) = args.keyword {
-                Some(Glob::new(filter)?)
+            let glob = if let Some(ref keyword) = args.keyword {
+                Some(Glob::new(keyword.as_str())?)
             } else {
                 None
             };
             for entry in usn_journal.iter_with_options(options)? {
-                if args.file_only && entry.is_dir() {
+                if should_skip_entry(&entry, &args, &glob) {
                     continue;
-                }
-                if args.directory_only && !entry.is_dir() {
-                    continue;
-                }
-                if let Some(ref glob) = glob {
-                    if !glob.is_match(entry.file_name.as_os_str()) {
-                        continue;
-                    }
                 }
 
                 let full_path = path_resolver.resolve_path(&entry);
-                println!(
-                    "usn={:?}, file_id={:?}, path={:?}",
-                    entry.usn, entry.fid, full_path
-                );
+                print_usn_entry(&entry, &full_path);
             }
         }
 
@@ -114,24 +202,16 @@ fn main() -> anyhow::Result<()> {
             let mft = Mft::new(volume);
             let mut path_resolver = MftPathResolver::new(&mft);
             let glob = if let Some(ref filter) = args.keyword {
-                Some(Glob::new(filter)?)
+                Some(Glob::new(filter.as_str())?)
             } else {
                 None
             };
             for entry in mft.iter_with_options(options) {
-                if args.file_only && entry.is_dir() {
+                if should_skip_entry(&entry, &args, &glob) {
                     continue;
-                }
-                if args.directory_only && !entry.is_dir() {
-                    continue;
-                }
-                if let Some(ref glob) = glob {
-                    if !glob.is_match(entry.file_name.as_os_str()) {
-                        continue;
-                    }
                 }
                 let full_path = path_resolver.resolve_path(&entry);
-                println!("fid={:?}, path={:?}", entry.fid, full_path);
+                print_mft_entry(&entry, &full_path);
             }
         }
         Commands::Read(args) => {
@@ -142,27 +222,16 @@ fn main() -> anyhow::Result<()> {
             };
             let mut path_resolver = JournalPathResolver::new(&usn_journal);
             let glob = if let Some(ref filter) = args.keyword {
-                Some(Glob::new(filter)?)
+                Some(Glob::new(filter.as_str())?)
             } else {
                 None
             };
             for entry in usn_journal.iter_with_options(options)? {
-                if args.file_only && entry.is_dir() {
+                if should_skip_entry(&entry, &args, &glob) {
                     continue;
-                }
-                if args.directory_only && !entry.is_dir() {
-                    continue;
-                }
-                if let Some(ref glob) = glob {
-                    if !glob.is_match(entry.file_name.as_os_str()) {
-                        continue;
-                    }
                 }
                 let full_path = path_resolver.resolve_path(&entry);
-                println!(
-                    "usn={:?}, file_id={:?}, path={:?}, reason={:?}",
-                    entry.usn, entry.fid, full_path, entry.reason
-                );
+                print_usn_entry(&entry, &full_path);
             }
         }
     }

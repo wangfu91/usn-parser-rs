@@ -8,6 +8,7 @@ usn-journal-rs = {path = "../usn-journal-rs"}
 clap = { version = "4.5.38", features = ["derive"] }
 anyhow = "1.0.98"
 wax = "0.6.0"
+chrono = "0.4.41"
 
 [[bin]]
 name = "usn-parser"
