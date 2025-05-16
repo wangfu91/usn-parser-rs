@@ -1,7 +1,14 @@
 [package]
-name = "usn-parser-cli"
+name = "usn-parser"
 version = "0.1.0"
 edition = "2024"
+authors = ["Fu Wang <wangfu91@hotmail.com>"]
+description = "A Windows utility for NTFS/ReFS to search the MFT & monitoring the changes of USN Journal."
+repository = "https://github.com/wangfu91/usn-parser-rs"
+license = "MIT"
+keywords = ["windows", "ntfs", "mft", "usn", "journal"]
+categories = ["development-tools", "filesystem", "Windows", "ntfs", "usn-journal"]
+readme = "README.md"
 
 [dependencies]
 usn-journal-rs = "0.2.2"
@@ -9,8 +16,4 @@ clap = { version = "4.5.38", features = ["derive"] }
 anyhow = "1.0.98"
 wax = "0.6.0"
 chrono = "0.4.41"
-
-[[bin]]
-name = "usn-parser"
-path = "src/main.rs"
 
