@@ -6,10 +6,8 @@ edition = "2024"
 [dependencies]
 usn-journal-rs = {path = "../usn-journal-rs"}
 clap = { version = "4.5.38", features = ["derive"] }
-log = "0.4.27" 
 anyhow = "1.0.98"
-chrono = "0.4.41"
-windows = {version = "0.61.1", features = ["Win32_Storage_FileSystem"]}
+wax = "0.6.0"
 
 [[bin]]
 name = "usn-parser"
