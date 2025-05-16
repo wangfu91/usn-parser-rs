@@ -44,75 +44,52 @@ cargo install usn-parser
 
 The utility requires administrator privileges to run.
 
-**General Syntax:**
-
+To see available commands and global options:
 ```powershell
-.\usn-parser.exe <COMMAND> <VOLUME_LETTER> [OPTIONS]
+usn-parser --help
 ```
-Or if installed via cargo:
+To get help for a specific command:
 ```powershell
-usn-parser <COMMAND> <VOLUME_LETTER> [OPTIONS]
+usn-parser <COMMAND> --help
 ```
 
-### Commands
+### Examples
 
-####  монитор (Monitor) 📡
+#### Monitor 📡
 Monitor real-time USN journal changes.
 
-**Syntax:**
-```powershell
-usn-parser monitor <VOLUME_LETTER> [OPTIONS]
-```
+*   Monitor drive `C` for all real-time USN records:
+    ```powershell
+    usn-parser monitor C
+    ```
+*   Monitor drive `D` for real-time USN records, filtering for `.txt` files whose names start with "log":
+    ```powershell
+    usn-parser monitor -f "log*.txt" --file-only D
+    ```
 
-**Example:** Monitor drive `C` for all changes:
-```powershell
-usn-parser monitor C
-```
-Monitor drive `D` for changes to files containing "report" in their name:
-```powershell
-usn-parser monitor D -f "*report*" --file-only
-```
-
-#### поиск (Search) 🔎
+#### Search 🔎
 Search the Master File Table.
 
-**Syntax:**
-```powershell
-usn-parser search <VOLUME_LETTER> [OPTIONS]
-```
+*   Search the Master File Table of volume `D`, printing out all files with the extension `.xlsx`:
+    ```powershell
+    usn-parser search -f "*.xlsx" --file-only D
+    ```
+*   Search the Master File Table of volume `C` for all directory entries:
+    ```powershell
+    usn-parser search --dir-only C
+    ```
 
-**Example:** Search drive `C` for all directory entries:
-```powershell
-usn-parser search C --dir-only
-```
-Search drive `E` for files matching `*.docx`:
-```powershell
-usn-parser search E -f "*.docx" --file-only
-```
-
-#### читать (Read) 📖
+#### Read 📖
 Read history USN journal entries.
 
-**Syntax:**
-```powershell
-usn-parser read <VOLUME_LETTER> [OPTIONS]
-```
-
-**Example:** Read all USN journal entries from drive `C`:
-```powershell
-usn-parser read C
-```
-Read USN journal entries from drive `F` related to directories with "backup" in their name:
-```powershell
-usn-parser read F --filter "*backup*" --dir-only
-```
-
-### Options
-
-*   `<VOLUME_LETTER>`: The volume name to target (e.g., `C`, `D`). (Required)
-*   `-f, --filter <KEYWORD>`: Filter results by keyword. Wildcards (`*`, `?`) are permitted.
-*   `--file-only`: Only display file entries.
-*   `--dir-only`: Only display directory entries.
+*   Print out the change history for a file named `ImportantDocument.docx` from the USN journal of volume `D`:
+    ```powershell
+    usn-parser read -f "ImportantDocument.docx" D
+    ```
+*   Read all USN journal entries from drive `F` related to directories with "archive" in their name:
+    ```powershell
+    usn-parser read --filter "*archive*" --dir-only F
+    ```
 
 ## 🏗️ Building from Source
 
