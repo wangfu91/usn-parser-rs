@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-usn-journal-rs = "0.2.1"
+usn-journal-rs = { path = "../usn-journal-rs" }
 clap = { version = "4.5.38", features = ["derive"] }
 anyhow = "1.0.98"
 wax = "0.6.0"

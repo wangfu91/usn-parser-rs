@@ -6,7 +6,7 @@ use usn_journal_rs::{
     USN_REASON_MASK_ALL,
     journal::{self, UsnEntry, UsnJournal},
     mft::{self, Mft, MftEntry},
-    path::{JournalPathResolver, MftPathResolver},
+    path::{JournalPathResolver, MftPathResolver, PathResolveTrait},
     volume::Volume,
 };
 use wax::{Glob, Pattern};
@@ -55,12 +55,14 @@ struct FilterOptions {
     )]
     keyword: Option<String>,
 
-    #[arg(long = "file-only", help = "Only show the file entries")]
+    #[arg(long = "file-only", help = "Only include the file entries")]
     file_only: bool,
 
-    #[arg(long = "dir-only", help = "Only show the directory entries")]
+    #[arg(long = "dir-only", help = "Only include the directory entries")]
     directory_only: bool,
 }
+
+const LRU_CACHE_CAPACITY: usize = 32 * 1024; // 32K
 
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
@@ -81,7 +83,8 @@ fn main() -> anyhow::Result<()> {
                 wait_for_more: true,
                 ..Default::default()
             };
-            let mut path_resolver = JournalPathResolver::new(&usn_journal);
+            let mut path_resolver =
+                JournalPathResolver::with_capacity(&usn_journal, LRU_CACHE_CAPACITY);
             let glob = if let Some(ref keyword) = args.keyword {
                 Some(Glob::new(keyword.as_str())?)
             } else {
@@ -104,7 +107,7 @@ fn main() -> anyhow::Result<()> {
                 ..Default::default()
             };
             let mft = Mft::new(volume);
-            let mut path_resolver = MftPathResolver::new(&mft);
+            let mut path_resolver = MftPathResolver::with_capacity(&mft, LRU_CACHE_CAPACITY);
             let glob = if let Some(ref filter) = args.keyword {
                 Some(Glob::new(filter.as_str())?)
             } else {
@@ -124,7 +127,8 @@ fn main() -> anyhow::Result<()> {
                 reason_mask: USN_REASON_MASK_ALL,
                 ..Default::default()
             };
-            let mut path_resolver = JournalPathResolver::new(&usn_journal);
+            let mut path_resolver =
+                JournalPathResolver::with_capacity(&usn_journal, LRU_CACHE_CAPACITY);
             let glob = if let Some(ref filter) = args.keyword {
                 Some(Glob::new(filter.as_str())?)
             } else {
@@ -201,7 +205,7 @@ impl PrettyPrint for UsnEntry {
         println!("{:<20}: {}", "File ID", format_fid(self.fid));
         println!("{:<20}: {}", "Parent File ID", format_fid(self.parent_fid));
         println!("{:<20}: {}", "Timestamp", format_timestamp(self.time));
-        println!("{:<20}: {}", "Reason", self.reason_to_string());
+        println!("{:<20}: {}", "Reason", self.get_readable_reason_string());
         if let Some(full_path) = full_path_opt {
             println!("{:<20}: {}", "Path", full_path.to_string_lossy());
         } else {
