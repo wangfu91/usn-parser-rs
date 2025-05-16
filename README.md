@@ -1,6 +1,6 @@
 #  usn-parser
 
-A command-line utility 💻 for parsing NTFS/ReFS USN (Update Sequence Number) Journals and searching the MFT (Master File Table) on Windows systems.
+A command-line utility 💻 for parsing NTFS/ReFS USN Change Journal and searching the NTFS MFT on Windows systems.
 
 [![Rust](https://img.shields.io/badge/rust-stable-blue.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
