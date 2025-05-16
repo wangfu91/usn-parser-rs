@@ -201,7 +201,7 @@ impl PrettyPrint for UsnEntry {
         println!("{:<20}: {}", "File ID", format_fid(self.fid));
         println!("{:<20}: {}", "Parent File ID", format_fid(self.parent_fid));
         println!("{:<20}: {}", "Timestamp", format_timestamp(self.time));
-        println!("{:<20}: {}", "Reason", self.reason);
+        println!("{:<20}: {}", "Reason", self.reason_to_string());
         if let Some(full_path) = full_path_opt {
             println!("{:<20}: {}", "Path", full_path.to_string_lossy());
         } else {
