@@ -1,4 +1,4 @@
-#  Rust USN Parser 🦀
+#  usn-parser
 
 A command-line utility 💻 for parsing NTFS/ReFS USN (Update Sequence Number) Journals and searching the MFT (Master File Table) on Windows systems.
 
@@ -23,34 +23,28 @@ A command-line utility 💻 for parsing NTFS/ReFS USN (Update Sequence Number) J
 
 ### Installation
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/wangfu91/usn-parser-rs.git
-    cd usn-parser-rs
-    ```
-
-2.  **Build the project:**
-    ```bash
-    cargo build --release
-    ```
-    The executable will be located at `target/release/usn-parser.exe`.
-
-Alternatively, you can install directly using `cargo install` if the crate is published to crates.io:
+The crate has been published to [crates.io](https://crates.io/crates/usn-parser), you can install it using Cargo:
 ```bash
 cargo install usn-parser
 ```
 
 ## 🛠️ Usage
 
-The utility requires administrator privileges to run.
+```powershell
+Usage: usn-parser.exe <COMMAND>
 
-To see available commands and global options:
-```powershell
-usn-parser --help
-```
-To get help for a specific command:
-```powershell
-usn-parser <COMMAND> --help
+Commands:
+  monitor  Monitor real-time USN journal changes
+  search   Search the Master File Table
+  read     Read history USN journal entries
+  help     Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help (see a summary with '-h')
+
+  -V, --version
+          Print version
 ```
 
 ### Examples
@@ -62,52 +56,34 @@ Monitor real-time USN journal changes.
     ```powershell
     usn-parser monitor C
     ```
-*   Monitor drive `D` for real-time USN records, filtering for `.txt` files whose names start with "log":
+*   Monitor drive `C` for real-time USN records, filtering for log files with the name prefix `app`:
     ```powershell
-    usn-parser monitor -f "log*.txt" --file-only D
+    usn-parser monitor C -f "app*.log" --file-only
     ```
 
 #### Search 🔎
 Search the Master File Table.
 
-*   Search the Master File Table of volume `D`, printing out all files with the extension `.xlsx`:
+*   Search the Master File Table of volume `C`, printing out all files with the extension `.xlsx`:
     ```powershell
-    usn-parser search -f "*.xlsx" --file-only D
+    usn-parser search C -f "*.xlsx" --file-only
     ```
-*   Search the Master File Table of volume `C` for all directory entries:
+*   Search the Master File Table of volume `D` for all directory entries:
     ```powershell
-    usn-parser search --dir-only C
+    usn-parser search D --dir-only
     ```
 
 #### Read 📖
 Read history USN journal entries.
 
-*   Print out the change history for a file named `ImportantDocument.docx` from the USN journal of volume `D`:
+*   Print out the change history for a file named `report.docx` from the USN journal of volume `D`:
     ```powershell
-    usn-parser read -f "ImportantDocument.docx" D
+    usn-parser read D -f "report.docx"
     ```
 *   Read all USN journal entries from drive `F` related to directories with "archive" in their name:
     ```powershell
-    usn-parser read --filter "*archive*" --dir-only F
+    usn-parser read F --filter "*archive*" --dir-only
     ```
-
-## 🏗️ Building from Source
-
-1.  Ensure you have Rust and Cargo installed.
-2.  Clone the repository:
-    ```bash
-    git clone https://github.com/wangfu91/usn-parser-rs.git
-    cd usn-parser-rs
-    ```
-3.  Build the project:
-    ```bash
-    cargo build
-    ```
-    For a release build (optimized):
-    ```bash
-    cargo build --release
-    ```
-    The executable will be in the `target/debug` or `target/release` directory.
 
 ## 🤝 Contributing
 
