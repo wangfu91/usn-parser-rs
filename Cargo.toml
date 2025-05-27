@@ -17,3 +17,10 @@ anyhow = "1.0.98"
 wax = "0.6.0"
 chrono = "0.4.41"
 
+[profile.release]
+opt-level = 3      # Optimize for speed.
+lto = "fat"        # Enable "fat" Link Time Optimization for better runtime performance.
+codegen-units = 1  # Use a single codegen unit for maximum optimization opportunities.
+panic = "abort"    # Abort on panic for smaller binaries and potentially faster code.
+strip = true       # Strip debug symbols from the binary.
+
