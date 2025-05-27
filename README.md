@@ -50,7 +50,7 @@ Options:
 #### 👀 Monitor real-time USN journal changes.
 
 ```powershell
-# Monitor drive C for all real-time file changes, filtering for log files with the name prefix 'app' in drive C:
+# Monitor drive C for real-time file changes, filtering for log files with the name prefix 'app':
 usn-parser monitor C -f "app*.log" --file-only
 ```
 
