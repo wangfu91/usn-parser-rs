@@ -1,0 +1,105 @@
+name: Create GitHub Release
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger on tags like v1.0.0, v0.1.0, etc.
+
+env:
+  CARGO_TERM_COLOR: always
+  PROJECT_NAME: usn-parser 
+
+jobs:
+  build_and_package:
+    name: Build and Package for ${{ matrix.arch }}
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            arch: x64
+            asset_name_suffix: x64
+          - target: aarch64-pc-windows-msvc
+            arch: arm64
+            asset_name_suffix: arm64
+    env:
+      # Construct ZIP_NAME and BINARY_NAME based on matrix and project name
+      # ZIP_NAME will be e.g., usn-parser-x64.zip
+      # BINARY_NAME will be e.g., usn-parser.exe
+      ZIP_NAME: ${{ env.PROJECT_NAME }}-${{ matrix.asset_name_suffix }}.zip
+      BINARY_NAME: ${{ env.PROJECT_NAME }}.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: 'recursive' 
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }} # Install the specific target for the matrix job
+
+      - name: Build binary
+        run: cargo build --verbose --release --target ${{ matrix.target }}
+
+      - name: Prepare package directory
+        shell: pwsh
+        run: |
+          $staging_dir = "staging-${{ matrix.asset_name_suffix }}"
+          New-Item -ItemType Directory -Force -Path $staging_dir
+          Copy-Item -Path "target/${{ matrix.target }}/release/${{ env.BINARY_NAME }}" -Destination "$staging_dir/${{ env.BINARY_NAME }}"
+          # You can add other files like README.md, LICENSE to $staging_dir here if you want them in the zip
+          # Example: Copy-Item -Path "README.md" -Destination "$staging_dir/README.md"
+
+      - name: Create Zip Archive
+        shell: pwsh
+        run: Compress-Archive -Path "staging-${{ matrix.asset_name_suffix }}/*" -DestinationPath "${{ env.ZIP_NAME }}"
+
+      - name: Upload release asset (zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ZIP_NAME }} # Name of the artifact (e.g., usn-parser-x64.zip)
+          path: ${{ env.ZIP_NAME }} # Path to the file to upload
+          retention-days: 1 # Keep artifact for 1 day
+
+  publish_github_release:
+    name: Publish GitHub Release
+    needs: build_and_package # Run this job after all build_and_package jobs are complete
+    runs-on: ubuntu-latest # ubuntu-latest is sufficient for this job
+    permissions:
+      contents: write # Required to create releases and upload assets
+
+    steps:
+      - name: Download all release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets # Download all artifacts to this directory
+          # This will create subdirectories like release-assets/usn-parser-x64.zip/usn-parser-x64.zip
+
+      - name: List downloaded files (for debugging)
+        run: |
+          echo "Listing files in release-assets:"
+          ls -R release-assets
+          echo "Current tag: ${{ github.ref_name }}"
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') # Ensure this step only runs for tag pushes
+        with:
+          # The softprops/action-gh-release action automatically uses the tag name for the release.
+          # It will also use the tag name as the release title by default.
+          body: |
+            Automated release for tag ${{ github.ref_name }}.
+            
+            Assets:
+            - Windows x64: `${{ env.PROJECT_NAME }}-x64.zip`
+            - Windows ARM64: `${{ env.PROJECT_NAME }}-arm64.zip`
+          files: | # Specify the paths to the assets to upload
+            release-assets/${{ env.PROJECT_NAME }}-x64.zip/${{ env.PROJECT_NAME }}-x64.zip
+            release-assets/${{ env.PROJECT_NAME }}-arm64.zip/${{ env.PROJECT_NAME }}-arm64.zip
+          # draft: false # Set to true to create a draft release
+          # prerelease: false # Set to true to mark as a pre-release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by GitHub Actions
