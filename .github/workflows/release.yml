@@ -23,11 +23,8 @@ jobs:
             arch: arm64
             asset_name_suffix: arm64
     env:
-      # Construct ZIP_NAME and BINARY_NAME based on matrix and project name
-      # ZIP_NAME will be e.g., usn-parser-x64.zip
-      # BINARY_NAME will be e.g., usn-parser.exe
-      ZIP_NAME: ${{ env.PROJECT_NAME }}-${{ matrix.asset_name_suffix }}.zip
-      BINARY_NAME: ${{ env.PROJECT_NAME }}.exe
+      ZIP_NAME: usn-parser-${{ matrix.asset_name_suffix }}.zip
+      BINARY_NAME: usn-parser.exe
 
     steps:
       - name: Checkout code
