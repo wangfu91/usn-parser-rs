@@ -1,0 +1,3 @@
+[submodule "usn-journal-rs"]
+	path = usn-journal-rs
+	url = https://github.com/wangfu91/usn-journal-rs.git
