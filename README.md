@@ -1,6 +1,6 @@
 #  usn-parser
 
-A command-line utility 💻 for parsing NTFS/ReFS USN Change Journal and searching the NTFS MFT on Windows systems.
+A command-line utility for searching the NTFS MFT and parsing NTFS/ReFS USN Change Journal on Windows.
 
 [![Crates.io](https://img.shields.io/crates/v/usn-parser.svg)](https://crates.io/crates/usn-parser)
 [![Downloads](https://img.shields.io/crates/d/usn-parser.svg)](https://crates.io/crates/usn-parser)
@@ -8,28 +8,25 @@ A command-line utility 💻 for parsing NTFS/ReFS USN Change Journal and searchi
 
 ## ✨ Features
 
-*   **Monitor Real-time Changes**: Keep an eye on USN journal entries as they happen. ⏱️
-*   **Search MFT**: Efficiently search the Master File Table for specific entries. 🔍
-*   **Read USN Journal History**: Access and analyze historical USN journal data. 📜
-*   **Flexible Filtering**:
+* 👀 **Monitor Real-time Changes**: Keep an eye on USN journal entries as they happen. 
+* 🔍 **Search MFT**: Efficiently search the Master File Table for specific entries.
+* 📖 **Read Journal Change History**: Access and analyze historical USN journal data.
+* 🔽 **Flexible Filtering**:
     *   Filter by keyword (wildcards supported).
-    *   Show only files 📄 or only directories 📁.
+    *   Show only files or only directories.
 
-## 🚀 Getting Started
-
-### Prerequisites
-
-*   Rust programming language and Cargo package manager installed. You can get them from [rustup.rs](https://rustup.rs/).
-*   Administrator privileges are required to access USN journals and the MFT.
-
-### Installation
+## 📥 Installation
 
 The crate has been published to [crates.io](https://crates.io/crates/usn-parser), you can install it using Cargo:
 ```bash
 cargo install usn-parser
 ```
 
-## 🛠️ Usage
+Alternatively, you can download the latest release from the [Releases page](https://github.com/wangfu91/usn-parser-rs/releases/latest) and run the executable directly.
+
+## 📖 Usage
+
+ > Note: Administrator privileges are required to access USN journals and the MFT.
 
 ```powershell
 Usage: usn-parser.exe <COMMAND>
@@ -48,43 +45,26 @@ Options:
           Print version
 ```
 
-### Examples
+### 💡Examples
 
-#### Monitor 📡
-Monitor real-time USN journal changes.
+#### 👀 Monitor real-time USN journal changes.
 
-*   Monitor drive `C` for all real-time USN records:
-    ```powershell
-    usn-parser monitor C
-    ```
-*   Monitor drive `C` for real-time USN records, filtering for log files with the name prefix `app`:
-    ```powershell
-    usn-parser monitor C -f "app*.log" --file-only
-    ```
+```powershell
+# Monitor drive C for all real-time file changes, filtering for log files with the name prefix 'app' in drive C:
+usn-parser monitor C -f "app*.log" --file-only
+```
 
-#### Search 🔎
-Search the Master File Table.
+#### 🔎 Search the MFT.
+```powershell
+# Search the MFT of drive C, printing out all files with the extension `.xlsx`:
+usn-parser search C -f "*.xlsx" --file-only
+```
 
-*   Search the Master File Table of volume `C`, printing out all files with the extension `.xlsx`:
-    ```powershell
-    usn-parser search C -f "*.xlsx" --file-only
-    ```
-*   Search the Master File Table of volume `D` for all directory entries:
-    ```powershell
-    usn-parser search D --dir-only
-    ```
-
-#### Read 📖
-Read history USN journal entries.
-
-*   Print out the change history for a file named `report.docx` from the USN journal of volume `D`:
-    ```powershell
-    usn-parser read D -f "report.docx"
-    ```
-*   Read all USN journal entries from drive `F` related to directories with "archive" in their name:
-    ```powershell
-    usn-parser read F --filter "*archive*" --dir-only
-    ```
+#### 📖 Read history USN journal entries.
+```powershell
+# Print out the change history for file 'report.docx' from the USN journal of drive D:
+usn-parser read D -f "report.docx"
+```
 
 ## 🤝 Contributing
 
