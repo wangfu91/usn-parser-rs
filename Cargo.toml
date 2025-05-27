@@ -1,6 +1,6 @@
 [package]
 name = "usn-parser"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["Fu Wang <wangfu91@hotmail.com>"]
 description = "A Windows utility for NTFS/ReFS to search the MFT & monitoring the changes of USN Journal."
