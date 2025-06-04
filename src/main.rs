@@ -1,12 +1,10 @@
-use std::time::SystemTime;
-
-use chrono::{DateTime, Local};
 use clap::{Parser, Subcommand};
+use std::path::PathBuf;
 use usn_journal_rs::{
     USN_REASON_MASK_ALL,
     journal::{self, UsnEntry, UsnJournal},
     mft::{self, Mft, MftEntry},
-    path::{JournalPathResolver, MftPathResolver, PathResolveTrait},
+    path::PathResolver,
     volume::Volume,
 };
 use wax::{Glob, Pattern};
@@ -62,8 +60,6 @@ struct FilterOptions {
     directory_only: bool,
 }
 
-const LRU_CACHE_CAPACITY: usize = 32 * 1024; // 32K
-
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
 
@@ -73,18 +69,17 @@ fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Commands::Monitor(args) => {
-            let usn_journal = UsnJournal::new(volume);
+            let usn_journal = UsnJournal::new(&volume);
             let journal_data = usn_journal.query(true)?;
             let options = journal::EnumOptions {
                 start_usn: journal_data.next_usn,
                 reason_mask: USN_REASON_MASK_ALL,
-                only_on_close: true,
+                only_on_close: false,
                 timeout: 0,
                 wait_for_more: true,
                 ..Default::default()
             };
-            let mut path_resolver =
-                JournalPathResolver::with_capacity(&usn_journal, LRU_CACHE_CAPACITY);
+            let mut path_resolver = PathResolver::new(&volume);
             let glob = if let Some(ref keyword) = args.keyword {
                 Some(Glob::new(keyword.as_str())?)
             } else {
@@ -96,7 +91,7 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 let full_path = path_resolver.resolve_path(&entry);
-                entry.pretty_print(&full_path);
+                entry.pretty_print(full_path);
             }
         }
 
@@ -106,8 +101,8 @@ fn main() -> anyhow::Result<()> {
                 high_usn: i64::MAX,
                 ..Default::default()
             };
-            let mft = Mft::new(volume);
-            let mut path_resolver = MftPathResolver::with_capacity(&mft, LRU_CACHE_CAPACITY);
+            let mft = Mft::new(&volume);
+            let mut path_resolver = PathResolver::new_with_cache(&volume);
             let glob = if let Some(ref filter) = args.keyword {
                 Some(Glob::new(filter.as_str())?)
             } else {
@@ -118,17 +113,16 @@ fn main() -> anyhow::Result<()> {
                     continue;
                 }
                 let full_path = path_resolver.resolve_path(&entry);
-                entry.pretty_print(&full_path);
+                entry.pretty_print(full_path);
             }
         }
         Commands::Read(args) => {
-            let usn_journal = UsnJournal::new(volume);
+            let usn_journal = UsnJournal::new(&volume);
             let options = journal::EnumOptions {
                 reason_mask: USN_REASON_MASK_ALL,
                 ..Default::default()
             };
-            let mut path_resolver =
-                JournalPathResolver::with_capacity(&usn_journal, LRU_CACHE_CAPACITY);
+            let mut path_resolver = PathResolver::new_with_cache(&volume);
             let glob = if let Some(ref filter) = args.keyword {
                 Some(Glob::new(filter.as_str())?)
             } else {
@@ -139,7 +133,7 @@ fn main() -> anyhow::Result<()> {
                     continue;
                 }
                 let full_path = path_resolver.resolve_path(&entry);
-                entry.pretty_print(&full_path);
+                entry.pretty_print(full_path);
             }
         }
     }
@@ -190,57 +184,17 @@ fn should_skip_entry<T: FilterableEntry>(
 }
 
 trait PrettyPrint {
-    fn pretty_print(&self, full_path_opt: &Option<std::path::PathBuf>);
+    fn pretty_print(&self, full_path_opt: Option<PathBuf>);
 }
 
 impl PrettyPrint for UsnEntry {
-    fn pretty_print(&self, full_path_opt: &Option<std::path::PathBuf>) {
-        println!();
-        println!("{:<20}: {}", "USN", format_usn(self.usn));
-        println!(
-            "{:<20}: {}",
-            "Type",
-            if self.is_dir() { "Directory" } else { "File" }
-        );
-        println!("{:<20}: {}", "File ID", format_fid(self.fid));
-        println!("{:<20}: {}", "Parent File ID", format_fid(self.parent_fid));
-        println!("{:<20}: {}", "Timestamp", format_timestamp(self.time));
-        println!("{:<20}: {}", "Reason", self.get_readable_reason_string());
-        if let Some(full_path) = full_path_opt {
-            println!("{:<20}: {}", "Path", full_path.to_string_lossy());
-        } else {
-            println!("{:<20}: {}", "Path", self.file_name.to_string_lossy());
-        }
+    fn pretty_print(&self, full_path_opt: Option<PathBuf>) {
+        println!("{}", self.pretty_format(full_path_opt));
     }
 }
 
 impl PrettyPrint for MftEntry {
-    fn pretty_print(&self, full_path_opt: &Option<std::path::PathBuf>) {
-        println!();
-        println!("{:<20}: {}", "File ID", format_fid(self.fid));
-        println!("{:<20}: {}", "Parent File ID", format_fid(self.parent_fid));
-        println!(
-            "{:<20}: {}",
-            "Type",
-            if self.is_dir() { "Directory" } else { "File" }
-        );
-        if let Some(full_path) = full_path_opt {
-            println!("{:<20}: {}", "Path", full_path.to_string_lossy());
-        } else {
-            println!("{:<20}: {}", "Path", self.file_name.to_string_lossy());
-        }
+    fn pretty_print(&self, full_path_opt: Option<PathBuf>) {
+        println!("{}", self.pretty_format(full_path_opt));
     }
-}
-
-fn format_usn(usn: i64) -> String {
-    format!("0x{:x}", usn)
-}
-
-fn format_fid(fid: u64) -> String {
-    format!("0x{:x}", fid)
-}
-
-fn format_timestamp(timestamp: SystemTime) -> String {
-    let dt_local: DateTime<Local> = DateTime::from(timestamp);
-    dt_local.format("%Y-%m-%d %H:%M:%S").to_string()
 }
