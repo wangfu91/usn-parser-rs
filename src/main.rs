@@ -1,3 +1,4 @@
+use anyhow::Context;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use usn_journal_rs::{
@@ -86,7 +87,7 @@ fn main() -> anyhow::Result<()> {
                 None
             };
             for result in usn_journal.iter_with_options(options)? {
-                let entry = result?;
+                let entry = result.context("Failed to read real-time USN entry")?;
                 if should_skip_entry(&entry, &args, &glob) {
                     continue;
                 }
@@ -110,7 +111,7 @@ fn main() -> anyhow::Result<()> {
                 None
             };
             for result in mft.iter_with_options(options) {
-                let entry = result?;
+                let entry = result.context("Failed to read MFT entry")?;
                 if should_skip_entry(&entry, &args, &glob) {
                     continue;
                 }
@@ -131,7 +132,7 @@ fn main() -> anyhow::Result<()> {
                 None
             };
             for result in usn_journal.iter_with_options(options)? {
-                let entry = result?;
+                let entry = result.context("Failed to read USN entry")?;
                 if should_skip_entry(&entry, &args, &glob) {
                     continue;
                 }
