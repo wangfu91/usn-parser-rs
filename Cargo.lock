@@ -498,8 +498,7 @@ checksum = "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853"
 [[package]]
 name = "usn-journal-rs"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d71f657d24414f022521968978a61366beb20b97655acfdeeb7f82e549e8eaff"
+source = "git+https://github.com/wangfu91/usn-journal-rs.git#352c9f852e99cc25b29991f1efc11845a20adca0"
 dependencies = [
  "chrono",
  "log",

@@ -85,7 +85,8 @@ fn main() -> anyhow::Result<()> {
             } else {
                 None
             };
-            for entry in usn_journal.iter_with_options(options)? {
+            for result in usn_journal.iter_with_options(options)? {
+                let entry = result?;
                 if should_skip_entry(&entry, &args, &glob) {
                     continue;
                 }
@@ -108,7 +109,8 @@ fn main() -> anyhow::Result<()> {
             } else {
                 None
             };
-            for entry in mft.iter_with_options(options) {
+            for result in mft.iter_with_options(options) {
+                let entry = result?;
                 if should_skip_entry(&entry, &args, &glob) {
                     continue;
                 }
@@ -128,7 +130,8 @@ fn main() -> anyhow::Result<()> {
             } else {
                 None
             };
-            for entry in usn_journal.iter_with_options(options)? {
+            for result in usn_journal.iter_with_options(options)? {
+                let entry = result?;
                 if should_skip_entry(&entry, &args, &glob) {
                     continue;
                 }
