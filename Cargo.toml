@@ -24,6 +24,6 @@ codegen-units = 1  # Use a single codegen unit for maximum optimization opportun
 panic = "abort"    # Abort on panic for smaller binaries and potentially faster code.
 strip = true       # Strip debug symbols from the binary.
 
-# Patch for usn-journal-rs to use the latest version from GitHub
+# Patch for usn-journal-rs to use the commit at the HEAD of the default branch on GitHub
 [patch.crates-io]
 usn-journal-rs = { git = "https://github.com/wangfu91/usn-journal-rs.git" }
