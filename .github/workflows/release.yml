@@ -85,6 +85,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/') # Ensure this step only runs for tag pushes
         with:
+          tag_name: ${{ github.ref_name }} # Explicitly specify the tag name
           # The softprops/action-gh-release action automatically uses the tag name for the release.
           # It will also use the tag name as the release title by default.
           body: |
@@ -96,7 +97,7 @@ jobs:
           files: | # Specify the paths to the assets to upload
             release-assets/${{ env.PROJECT_NAME }}-x64.zip/${{ env.PROJECT_NAME }}-x64.zip
             release-assets/${{ env.PROJECT_NAME }}-arm64.zip/${{ env.PROJECT_NAME }}-arm64.zip
-          # draft: false # Set to true to create a draft release
-          # prerelease: false # Set to true to mark as a pre-release
+          draft: false # Explicitly set to false to create a public release
+          prerelease: false # Set to true to mark as a pre-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by GitHub Actions
