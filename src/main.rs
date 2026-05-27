@@ -179,10 +179,10 @@ fn should_skip_entry<T: FilterableEntry>(
     if args.directory_only && !entry.is_dir() {
         return true;
     }
-    if let Some(g) = glob {
-        if !g.is_match(entry.file_name_os_str()) {
-            return true;
-        }
+    if let Some(g) = glob
+        && !g.is_match(entry.file_name_os_str())
+    {
+        return true;
     }
     false
 }
