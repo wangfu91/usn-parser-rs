@@ -1,10 +1,10 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::{path::PathBuf, time::Duration};
 use usn_journal_rs::{
-    USN_REASON_MASK_ALL,
-    journal::{self, UsnEntry, UsnJournal},
-    mft::{self, Mft, MftEntry},
+    UsnReason,
+    journal::{JournalIterOptions, UsnEntry, UsnJournal},
+    mft::{Mft, MftEntry, MftIterOptions},
     path::PathResolver,
     volume::Volume,
 };
@@ -33,7 +33,6 @@ enum Commands {
     #[command(about = "Read history USN journal entries")]
     Read(FilterOptions),
 }
-
 impl Commands {
     fn volume(&self) -> char {
         match self {
@@ -71,16 +70,15 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::Monitor(args) => {
             let usn_journal = UsnJournal::new(&volume);
-            let journal_data = usn_journal.query(true)?;
-            let options = journal::EnumOptions {
-                start_usn: journal_data.next_usn,
-                reason_mask: USN_REASON_MASK_ALL,
-                only_on_close: false,
-                timeout: 0,
-                wait_for_more: true,
-                ..Default::default()
-            };
-            let mut path_resolver = PathResolver::new(&volume);
+            let journal_data = usn_journal.query_or_create()?;
+            let options = JournalIterOptions::builder()
+                .start_usn(journal_data.next_usn)
+                .reason_mask(UsnReason::ALL)
+                .only_on_close(false)
+                .timeout(Duration::from_secs(0))
+                .wait_for_more(true)
+                .build()?;
+            let path_resolver = PathResolver::new(&volume);
             let glob = if let Some(ref keyword) = args.keyword {
                 Some(Glob::new(keyword.as_str())?)
             } else {
@@ -98,13 +96,12 @@ fn main() -> anyhow::Result<()> {
         }
 
         Commands::Search(args) => {
-            let options = mft::EnumOptions {
-                low_usn: 0,
-                high_usn: i64::MAX,
-                ..Default::default()
-            };
+            let options = MftIterOptions::builder()
+                .low_usn(0.into())
+                .high_usn(i64::MAX.into())
+                .build()?;
             let mft = Mft::new(&volume);
-            let mut path_resolver = PathResolver::new_with_cache(&volume);
+            let path_resolver = PathResolver::new_with_cache(&volume);
             let glob = if let Some(ref filter) = args.keyword {
                 Some(Glob::new(filter.as_str())?)
             } else {
@@ -121,11 +118,8 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::Read(args) => {
             let usn_journal = UsnJournal::new(&volume);
-            let options = journal::EnumOptions {
-                reason_mask: USN_REASON_MASK_ALL,
-                ..Default::default()
-            };
-            let mut path_resolver = PathResolver::new_with_cache(&volume);
+            let options = JournalIterOptions::builder().build()?;
+            let path_resolver = PathResolver::new_with_cache(&volume);
             let glob = if let Some(ref filter) = args.keyword {
                 Some(Glob::new(filter.as_str())?)
             } else {
